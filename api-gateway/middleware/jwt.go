@@ -10,6 +10,7 @@ import (
 
 type Claims struct {
 	UserID string
+	Role   string
 	jwt.RegisteredClaims
 }
 
@@ -50,6 +51,9 @@ func JwtMiddleware(cfg *config.Config) fiber.Handler {
 		}
 
 		c.Request().Header.Set("X-User-ID", claims.UserID)
+		c.Request().Header.Set("X-User-Role", claims.Role)
+
+		//for ratelimit
 		c.Locals("userID", claims.UserID)
 
 		return c.Next()
