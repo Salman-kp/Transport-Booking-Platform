@@ -14,7 +14,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(cfg config.Config, userID, role string) (string, error) {
+func GenerateToken(cfg *config.Config, userID, role string) (string, error) {
 
 	expiry, _ := time.ParseDuration(cfg.JWT_EXPIRY)
 	log.Print(expiry)

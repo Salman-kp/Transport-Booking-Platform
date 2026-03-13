@@ -15,11 +15,11 @@ func main() {
 
 	db.ConnectPostgres(cfg)
 
-	_ = redis.Client(cfg.REDIS_HOST, cfg.REDIS_PORT)
+	rdb := redis.Client(cfg.REDIS_HOST, cfg.REDIS_PORT)
 
 	app := fiber.New()
 
-	routes.Register(app, cfg)
+	routes.Register(app, cfg, rdb)
 
 	if err := app.Listen(":" + cfg.APP_PORT); err != nil {
 		log.Print(err)
