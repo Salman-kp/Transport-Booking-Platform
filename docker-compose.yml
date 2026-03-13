@@ -1,4 +1,13 @@
+#check root env-example before running
 services:
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    restart: always  
+
+
   api-gateway: 
     build:
       context: ./api-gateway
@@ -12,9 +21,17 @@ services:
       - "REDIS_PORT=6379"  
     depends_on:
       - redis
-  redis:
-    image: redis:latest
+
+
+  auth-service:
+    build: 
+      context: ./auth-service
+      dockerfile: Dockerfile
     ports:
-      - "6379:6379"
-    restart: always  
+      - "8081:8081"
+    env_file:
+     - ./auth-service/.env
+    environment:
+      DB_URL: ${AUTH_DB}
+
     
