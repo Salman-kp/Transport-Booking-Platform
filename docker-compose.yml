@@ -34,5 +34,10 @@ services:
      - ./auth-service/.env
     environment:
       DB_URL: ${AUTH_DB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    
+    depends_on:
+      - redis
 
     
