@@ -16,19 +16,24 @@ func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
 		return c.Status(200).JSON(fiber.Map{"status": "ok", "request_id": hdr})
 	})
 
-	public := app.Group("/api")
-	private := app.Group("/ap")
+	api := app.Group("/api")
 
-	private.Use(middleware.JwtMiddleware(cfg))
-	private.Use(middleware.RateLimit(rdb))
-
-	public.Get("/health", func(c fiber.Ctx) error {
-		return c.SendString("ok")
-	})
-	private.Get("/protected_health", func(c fiber.Ctx) error {
+	api.Get("/health", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
-	app.All("/auth/*", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth := api.Group("/auth")
+
+	// public auth routes
+	auth.Post("/register", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.Post("/verify-otp", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.Post("/resend-otp", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.Post("/login", proxy.To(cfg.AUTH_SERVICE_URL))
+
+	auth.Post("/logout",
+		middleware.JwtMiddleware(cfg),
+		middleware.RateLimit(rdb),
+		proxy.To(cfg.AUTH_SERVICE_URL),
+	)
 
 }

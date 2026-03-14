@@ -7,12 +7,10 @@ import (
 	"time"
 
 	"github.com/junaid9001/tripneo/auth-service/db"
+	domainerrors "github.com/junaid9001/tripneo/auth-service/domain_errors"
 	"github.com/junaid9001/tripneo/auth-service/models"
 	"gorm.io/gorm"
 )
-
-var ErrEmailALreadyTaken = errors.New("email already taken")
-var ErrEmailNotFound = errors.New("email not found")
 
 func InsertUser(email, hashedPassword string) error {
 
@@ -25,7 +23,7 @@ func InsertUser(email, hashedPassword string) error {
 	if err := db.DB.Create(&user).Error; err != nil {
 
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return ErrEmailALreadyTaken
+			return domainerrors.EmailAlreadyTaken
 		}
 
 		return fmt.Errorf("Internal Server Error")
@@ -39,7 +37,7 @@ func FindUserByEmail(email string) (*models.User, error) {
 	if err := db.DB.Where("email=?", email).First(&user).Error; err != nil {
 		log.Print(err.Error())
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrEmailNotFound
+			return nil, domainerrors.EmailNotFound
 		}
 
 		return nil, fmt.Errorf("Internal Server Error")

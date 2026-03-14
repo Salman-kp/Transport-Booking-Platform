@@ -8,7 +8,7 @@ import (
 )
 
 func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
-	auth := app.Group("/auth")
+	auth := app.Group("/api/auth")
 
 	auth.Post("/register", handlers.Register(rdb, cfg))
 	auth.Post("/verify-otp", handlers.VerifyOtp(rdb))

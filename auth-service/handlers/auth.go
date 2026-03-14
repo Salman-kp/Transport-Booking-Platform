@@ -8,6 +8,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	"github.com/junaid9001/tripneo/auth-service/config"
+	domainerrors "github.com/junaid9001/tripneo/auth-service/domain_errors"
 	"github.com/junaid9001/tripneo/auth-service/service"
 	"github.com/redis/go-redis/v9"
 )
@@ -36,13 +37,13 @@ func Register(rdb *redis.Client, cfg *config.Config) fiber.Handler {
 
 		err := service.CreateUser(c.RequestCtx(), cfg, rdb, req.Email, req.Password)
 		if err != nil {
-			if errors.Is(err, service.EmailAlreadyTaken) {
+			if errors.Is(err, domainerrors.EmailAlreadyTaken) {
 				return c.Status(http.StatusConflict).JSON(fiber.Map{
-					"error": "email already registered",
+					"error": err.Error(),
 				})
 			}
 
-			return c.Status(500).JSON(fiber.Map{"error": "internal server error"})
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 
 		return c.Status(http.StatusCreated).JSON(fiber.Map{
@@ -75,15 +76,15 @@ func VerifyOtp(rdb *redis.Client) fiber.Handler {
 
 		err := service.ValidateOtp(c.RequestCtx(), rdb, req.Email, req.Otp)
 		if err != nil {
-			if errors.Is(err, service.EmailNotFound) {
+			if errors.Is(err, domainerrors.EmailNotFound) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 
-			} else if errors.Is(err, service.InvalidOrExpiredOtp) {
+			} else if errors.Is(err, domainerrors.ErrInvalidOrExpiredOtp) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 
-			} else if errors.Is(err, service.EmailALreadyVerified) {
+			} else if errors.Is(err, domainerrors.EmailALreadyVerified) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 			}
@@ -119,19 +120,19 @@ func ResendOtp(cfg *config.Config, rdb *redis.Client) fiber.Handler {
 
 		err := service.ResendOtp(c.RequestCtx(), cfg, rdb, req.Email)
 		if err != nil {
-			if errors.Is(err, service.EmailNotFound) {
+			if errors.Is(err, domainerrors.EmailNotFound) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 
-			} else if errors.Is(err, service.ResendOtpCooldown) {
+			} else if errors.Is(err, domainerrors.ResendOtpCooldown) {
 
 				return c.Status(429).JSON(fiber.Map{"error": err.Error()})
 
-			} else if errors.Is(err, service.EmailALreadyVerified) {
+			} else if errors.Is(err, domainerrors.EmailALreadyVerified) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 			}
-			return c.Status(500).JSON(fiber.Map{"error": "internal server error"})
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 
 		}
 
@@ -160,15 +161,19 @@ func Login(cfg *config.Config) fiber.Handler {
 		}
 		token, err := service.Login(cfg, req.Email, req.Password)
 		if err != nil {
-			if errors.Is(err, service.EmailNotFound) {
+			if errors.Is(err, domainerrors.EmailNotFound) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 
-			} else if errors.Is(err, service.InvalidEmailOrPassword) {
+			} else if errors.Is(err, domainerrors.InvalidEmailOrPassword) {
+
+				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+
+			} else if errors.Is(err, domainerrors.VerifyEmailBeforeLoggingIN) {
 
 				return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 			} else {
-				return c.Status(500).JSON(fiber.Map{"error": "internal server error"})
+				return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 			}
 		}
 

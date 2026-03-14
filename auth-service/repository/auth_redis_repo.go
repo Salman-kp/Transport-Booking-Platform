@@ -2,16 +2,12 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
 
+	domainerrors "github.com/junaid9001/tripneo/auth-service/domain_errors"
 	"github.com/redis/go-redis/v9"
 )
-
-var ErrInvalidOrExpiredOtp = errors.New("Invalid or Expired Otp")
-
-var ErrOtpCooldownLimit = errors.New("please wait for 1 minute before requesting a new OTP")
 
 func StroreOtpInRedis(ctx context.Context, rdb *redis.Client, email, otp string) error {
 	key := "otp:" + email
@@ -38,9 +34,13 @@ func ValidateAndStoreNewOtp(ctx context.Context, rdb *redis.Client, email, otp s
 	keyOtpCooldown := "otp:cooldown" + email
 
 	err := rdb.Get(ctx, keyOtpCooldown).Err()
-	if err != redis.Nil {
 
-		return ErrOtpCooldownLimit
+	if err == nil {
+		return domainerrors.ErrOtpCooldownLimit
+	}
+	if err != redis.Nil {
+		log.Print(err)
+		return err
 	}
 
 	err = rdb.Set(ctx, key, otp, 5*time.Minute).Err()
@@ -62,7 +62,7 @@ func ValidateOtpInRedis(ctx context.Context, rdb *redis.Client, email, enteredOt
 	key := "otp:" + email
 	val, err := rdb.Get(ctx, key).Result()
 	if err == redis.Nil {
-		return ErrInvalidOrExpiredOtp
+		return domainerrors.ErrInvalidOrExpiredOtp
 	}
 
 	if err != nil {
@@ -70,7 +70,7 @@ func ValidateOtpInRedis(ctx context.Context, rdb *redis.Client, email, enteredOt
 		return err
 	}
 	if val != enteredOtp {
-		return ErrInvalidOrExpiredOtp
+		return domainerrors.ErrInvalidOrExpiredOtp
 	}
 
 	return nil
