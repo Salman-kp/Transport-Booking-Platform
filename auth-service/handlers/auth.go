@@ -145,7 +145,7 @@ func Login(cfg *config.Config) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		var req struct {
 			Email    string `json:"email" validate:"required,email"`
-			Password string `json:"password" validate:"required,min=4"`
+			Password string `json:"password" validate:"required,min=6"`
 		}
 
 		if err := c.Bind().Body(&req); err != nil {
