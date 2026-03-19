@@ -65,7 +65,7 @@ services:
     depends_on:
      - redis  
 
-  train_service:
+  train-service:
     build:
       context: ./train-service
       dockerfile: Dockerfile
