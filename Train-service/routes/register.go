@@ -18,6 +18,10 @@ func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
 	api := app.Group("/api")
 	train := api.Group("/train")
 
+	train.Get("/health", func(c fiber.Ctx) error {
+		return c.Status(200).JSON(fiber.Map{"status": "ok", "service": "train-service"})
+	})
+
 	// --- Public Routes (no auth needed) ---
 	train.Get("/search", handlers.SearchTrains())
 	train.Post("/tickets/verify", handlers.VerifyTicket())
