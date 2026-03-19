@@ -12,8 +12,9 @@ type Config struct {
 	REDIS_HOST string
 	REDIS_PORT string
 
-	FRONTEND_URL     string
-	AUTH_SERVICE_URL string
+	FRONTEND_URL       string
+	AUTH_SERVICE_URL   string
+	FLIGHT_SERVICE_URL string
 
 	JWT_SECRET string
 }
@@ -29,17 +30,19 @@ func LoadConfig() *Config {
 	REDIS_PORT := os.Getenv("REDIS_PORT")
 
 	AUTH_SERVICE_URL := os.Getenv("AUTH_SERVICE_URL")
+	FLIGHT_SERVICE_URL := os.Getenv("FLIGHT_SERVICE_URL")
 	FRONTEND_URL := os.Getenv("FRONTEND_URL")
 
 	JWT_SECRET := os.Getenv("JWT_SECRET")
 
 	cfg := &Config{
-		APP_PORT:         APP_PORT,
-		REDIS_HOST:       REDIS_HOST,
-		REDIS_PORT:       REDIS_PORT,
-		AUTH_SERVICE_URL: AUTH_SERVICE_URL,
-		JWT_SECRET:       JWT_SECRET,
-		FRONTEND_URL:     FRONTEND_URL,
+		APP_PORT:           APP_PORT,
+		REDIS_HOST:         REDIS_HOST,
+		REDIS_PORT:         REDIS_PORT,
+		AUTH_SERVICE_URL:   AUTH_SERVICE_URL,
+		FLIGHT_SERVICE_URL: FLIGHT_SERVICE_URL,
+		JWT_SECRET:         JWT_SECRET,
+		FRONTEND_URL:       FRONTEND_URL,
 	}
 
 	return cfg

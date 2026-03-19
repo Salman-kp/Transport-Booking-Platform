@@ -17,6 +17,8 @@ func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
 		return c.Status(200).JSON(fiber.Map{"status": "ok", "request_id": hdr})
 	})
 
+	RegisterFlightRoutes(app, cfg, rdb)
+
 	app.Get("/metrics", promhttp.Handler())
 
 	api := app.Group("/api")
