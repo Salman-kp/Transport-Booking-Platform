@@ -18,7 +18,6 @@ func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
 	})
 
 	RegisterFlightRoutes(app, cfg, rdb)
-	RegisterBusRoutes(app, cfg, rdb)
 
 	app.Get("/metrics", promhttp.Handler())
 
