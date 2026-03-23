@@ -1,9 +1,20 @@
 package handlers
 
-import "github.com/gofiber/fiber/v3"
+import (
+	"github.com/gofiber/fiber/v3"
+	"github.com/nabeel-mp/tripneo/train-service/service"
+	goredis "github.com/redis/go-redis/v9"
+)
 
-func GetLiveStatus() fiber.Handler {
+// GetLiveStatus handles GET /api/train/:id/live-status
+func GetLiveStatus(rdb *goredis.Client) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		return c.Status(200).JSON(fiber.Map{"message": "live status - coming in phase 4"})
+		scheduleID := c.Params("id")
+
+		result, err := service.GetLiveStatus(c.Context(), rdb, scheduleID)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(200).JSON(result)
 	}
 }

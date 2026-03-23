@@ -8,6 +8,7 @@ import (
 	"github.com/nabeel-mp/tripneo/train-service/db"
 	"github.com/nabeel-mp/tripneo/train-service/redis"
 	"github.com/nabeel-mp/tripneo/train-service/routes"
+	"github.com/nabeel-mp/tripneo/train-service/service"
 )
 
 func main() {
@@ -16,6 +17,8 @@ func main() {
 	db.ConnectPostgres(cfg)
 
 	rdb := redis.Client(cfg.REDIS_HOST, cfg.REDIS_PORT)
+
+	go service.RunInstanceGeneratorWorker()
 
 	// kafka.InitProducer(cfg)
 
