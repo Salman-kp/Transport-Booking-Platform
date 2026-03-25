@@ -1,28 +1,33 @@
 package repository
 
 import (
+	"errors"
+
 	"github.com/Salman-kp/tripneo/bus-service/db"
 	"github.com/Salman-kp/tripneo/bus-service/internal/model"
 	"gorm.io/gorm"
 )
 
+// Get all active seats for a bus
 func FindSeatsByBusID(busID string) ([]model.Seat, error) {
 	var seats []model.Seat
 	err := db.DB.Where("bus_id = ? AND is_active = true", busID).Find(&seats).Error
 	return seats, err
 }
 
-// DecrementSeat uses a DB-level atomic update to prevent overselling
-func DecrementAvailableSeats(scheduleID string, count int) error {
-	return db.DB.Model(&model.Schedule{}).
-		Where("id = ? AND available_seats >= ?", scheduleID, count).
-		UpdateColumn("available_seats", gorm.Expr("available_seats - ?", count)).
-		Error
+// Get seat by ID
+func FindSeatByID(id string) (*model.Seat, error) {
+	var seat model.Seat
+	err := db.DB.Where("id = ?", id).First(&seat).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	return &seat, err
 }
 
-func IncrementAvailableSeats(scheduleID string, count int) error {
-	return db.DB.Model(&model.Schedule{}).
-		Where("id = ?", scheduleID).
-		UpdateColumn("available_seats", gorm.Expr("available_seats + ?", count)).
-		Error
+// Create new seat
+func CreateSeat(seat *model.Seat) error {
+	return db.DB.Create(seat).Error
 }
