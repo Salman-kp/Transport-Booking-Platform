@@ -38,27 +38,15 @@ type PassengerRequest struct {
 	SeatID         string `json:"seat_id"` // empty for infants
 }
 
-// BookingResponse is returned to the client after booking creation.
 type BookingResponse struct {
 	BookingID   string    `json:"booking_id"`
 	PNR         string    `json:"pnr"`
 	Status      string    `json:"status"`
 	TotalAmount float64   `json:"total_amount"`
 	ExpiresAt   time.Time `json:"expires_at"`
-	PaymentURL  string    `json:"payment_url"` // from Payment Service gRPC (Phase 5)
+	PaymentURL  string    `json:"payment_url"`
 }
 
-// CreateBooking is the critical section of the entire service.
-//
-// Flow:
-//  1. Validate all seats exist and are AVAILABLE in DB
-//  2. Lock all seats atomically in Redis (all-or-nothing)
-//  3. Wrap everything in a DB transaction
-//  4. Create TrainBooking with status=PENDING_PAYMENT
-//  5. Create BookingSeat records
-//  6. Create Passenger records
-//  7. Commit transaction
-//  8. Return booking (payment URL will be added in Phase 5)
 func CreateBooking(
 	ctx context.Context,
 	rdb *goredis.Client,
@@ -191,9 +179,6 @@ func CreateBooking(
 		return nil, txErr
 	}
 
-	// TODO Phase 5: call Payment Service via gRPC to get payment URL
-	// paymentURL, _ := grpcclient.InitiatePayment(booking.ID, booking.TotalAmount)
-
 	return &BookingResponse{
 		BookingID:   booking.ID.String(),
 		PNR:         booking.PNR,
@@ -221,14 +206,6 @@ func GetUserBookingHistory(userID string) ([]models.TrainBooking, error) {
 	return repository.GetBookingsByUserID(userID)
 }
 
-// CancelBooking processes a cancellation request.
-//
-// Flow:
-//  1. Fetch and verify ownership
-//  2. Check status is cancellable
-//  3. Calculate refund via cancellation policy
-//  4. DB transaction: cancel booking + create cancellation record + restore seats
-//  5. Release Redis seat locks
 func CancelBookingByUser(
 	ctx context.Context,
 	rdb *goredis.Client,
@@ -301,7 +278,6 @@ func CancelBookingByUser(
 		return nil, txErr
 	}
 
-	// Release Redis seat locks (already expired if booking was PENDING_PAYMENT)
 	_ = utils.UnlockSeats(ctx, rdb, booking.TrainScheduleID.String(), seatIDs)
 
 	return &cancellation, nil

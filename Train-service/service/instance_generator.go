@@ -10,8 +10,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// CoachConfig defines how many coaches of each type a train has,
-// and the berth layout within each coach.
 type CoachConfig struct {
 	// SL coaches
 	SLCoaches int // e.g. 8 coaches named S1..S8
@@ -38,11 +36,7 @@ type BerthConfig struct {
 	Wholesale  float64
 }
 
-// defaultCoachConfig returns the standard coach layout for a normal express train.
-// In production this would be loaded per train from a config table.
 func defaultCoachConfig() CoachConfig {
-	// Standard SL berths per coach (8 berths per bay, 9 bays = 72 berths per coach)
-	// Simplified to 10 berths for dev/testing
 	slBerths := []BerthConfig{
 		{SeatNumber: "1", BerthType: "LOWER", Price: 750, Wholesale: 600},
 		{SeatNumber: "2", BerthType: "MIDDLE", Price: 720, Wholesale: 575},
@@ -89,11 +83,6 @@ func defaultCoachConfig() CoachConfig {
 	}
 }
 
-// GenerateInstancesForDays generates train_schedules + train_inventory
-// for all active trains for the next `days` days from today.
-//
-// This is idempotent — it skips any (train_id, schedule_date) that already exists.
-// Safe to call daily via cron without creating duplicates.
 func GenerateInstancesForDays(days int) error {
 	log.Printf("[instance-gen] Starting generation for next %d days", days)
 

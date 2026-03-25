@@ -27,15 +27,6 @@ type TrackingResult struct {
 	LastUpdated    time.Time `json:"last_updated"`
 }
 
-// GetLiveStatus returns live tracking for a train schedule.
-//
-// Flow:
-//  1. Resolve schedule to get train number
-//  2. Check Redis cache (30s TTL)
-//  3. Cache hit  → return with stale=false
-//  4. Cache miss → call external tracking API
-//  5. API fail   → return last cached with stale=true (degrade gracefully)
-//  6. Store in Redis, return fresh data
 func GetLiveStatus(
 	ctx context.Context,
 	rdb *goredis.Client,
@@ -60,9 +51,6 @@ func GetLiveStatus(
 		}
 	}
 
-	// Cache miss — call external API
-	// TODO Phase 4 Extension: integrate real RailwayAPI.com
-	// For now, return simulated data based on schedule
 	result := simulateTracking(schedule.Train.TrainName, trainNumber, schedule.Status, schedule.DelayMinutes)
 
 	// Store in Redis
@@ -73,8 +61,6 @@ func GetLiveStatus(
 	return result, nil
 }
 
-// simulateTracking builds a simulated tracking result from schedule data.
-// Replace this with a real API call when RailwayAPI credentials are available.
 func simulateTracking(trainName, trainNumber, status string, delayMinutes int) *TrackingResult {
 	log.Printf("[tracking] simulated response for train %s", trainNumber)
 	return &TrackingResult{
