@@ -2,15 +2,22 @@ package model
 
 import (
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"time"
 )
 
 type Seat struct {
-	ID         uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	BusID      uuid.UUID `gorm:"type:uuid;not null"`
-	SeatNumber string    `gorm:"size:20;not null"`
-	SeatType   string    `gorm:"size:50;not null"` // window, aisle, sleeper
-	IsActive   bool      `gorm:"default:true"`
-	CreatedAt  time.Time
-	Bus        Bus
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	BusID      uuid.UUID `gorm:"type:uuid;not null" json:"bus_id"`
+	SeatNumber string    `gorm:"type:varchar(20);not null" json:"seat_number"`
+	SeatType   string    `gorm:"type:varchar(50);not null" json:"seat_type"`
+	IsActive   bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func (s *Seat) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
+	return nil
 }

@@ -1,0 +1,29 @@
+[
+  {
+    "name": "Indira Gandhi International Airport",
+    "iata_code": "DEL",
+    "city": "New Delhi",
+    "country": "India",
+    "time_zone": "Asia/Kolkata",
+    "latitude": 28.5562,
+    "longitude": 77.1000
+  },
+  {
+    "name": "Chhatrapati Shivaji Maharaj International Airport",
+    "iata_code": "BOM",
+    "city": "Mumbai",
+    "country": "India",
+    "time_zone": "Asia/Kolkata",
+    "latitude": 19.0896,
+    "longitude": 72.8656
+  },
+  {
+    "name": "Dubai International Airport",
+    "iata_code": "DXB",
+    "city": "Dubai",
+    "country": "United Arab Emirates",
+    "time_zone": "Asia/Dubai",
+    "latitude": 25.2532,
+    "longitude": 55.3657
+  }
+]

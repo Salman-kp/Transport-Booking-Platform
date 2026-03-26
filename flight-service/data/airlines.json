@@ -1,0 +1,20 @@
+[
+  {
+    "name": "IndiGo",
+    "iata_code": "6E",
+    "logo_url": "https://example.com/logo/6e.png",
+    "is_active": true
+  },
+  {
+    "name": "Air India",
+    "iata_code": "AI",
+    "logo_url": "https://example.com/logo/ai.png",
+    "is_active": true
+  },
+  {
+    "name": "Emirates",
+    "iata_code": "EK",
+    "logo_url": "https://example.com/logo/ek.png",
+    "is_active": true
+  }
+]

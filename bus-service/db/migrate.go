@@ -24,7 +24,7 @@ func ConnectPostgres(cfg *config.Config) {
 		&model.BookingSeat{},
 		&model.BusTracking{},
 		&model.Inventory{},
-		&model.QrScan{},
+		&model.QRScan{},
 	); err != nil {
 		log.Fatal("DB migration failed:", err)
 	}

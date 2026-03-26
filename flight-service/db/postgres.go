@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/junaid9001/tripneo/flight-service/config"
+	"github.com/junaid9001/tripneo/flight-service/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -18,7 +19,14 @@ func ConnectPostgres(cfg *config.Config) {
 		log.Fatal("Failed to connect to PostgreSQL:", err)
 	}
 
-	if err = db.AutoMigrate(); err != nil {
+	if err = db.AutoMigrate(
+		&models.Airline{},
+		&models.Airport{},
+		&models.AircraftType{},
+		&models.Flight{},
+		&models.FlightInstance{},
+		&models.FareType{},
+		&models.Seat{}); err != nil {
 		log.Fatal("db migration failed")
 	}
 

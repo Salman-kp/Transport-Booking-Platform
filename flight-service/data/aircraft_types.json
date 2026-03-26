@@ -1,0 +1,26 @@
+[
+  {
+    "model": "Boeing 737-800",
+    "manufacturer": "Boeing",
+    "seat_layout": {
+      "economy": {
+        "rows": 30,
+        "columns": ["A", "B", "C", "", "D", "E", "F"]
+      },
+      "business": {
+        "rows": 5,
+        "columns": ["A", "B", "", "E", "F"]
+      }
+    }
+  },
+  {
+    "model": "Airbus A320neo",
+    "manufacturer": "Airbus",
+    "seat_layout": {
+      "economy": {
+        "rows": 31,
+        "columns": ["A", "B", "C", "", "D", "E", "F"]
+      }
+    }
+  }
+]

@@ -1,0 +1,38 @@
+
+// import (
+// 	"github.com/Salman-kp/tripneo/bus-service/config"
+// 	"github.com/Salman-kp/tripneo/bus-service/internal/handler"
+// 	"github.com/Salman-kp/tripneo/bus-service/internal/middleware"
+// 	"github.com/gofiber/fiber/v3"
+// 	"github.com/redis/go-redis/v9"
+// 	"github.com/segmentio/kafka-go"
+// )
+
+// func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client, producer *kafka.Writer) {
+// 	api := app.Group("/api/bus")
+
+// 	api.Get("/health", func(c fiber.Ctx) error {
+// 		return c.Status(200).JSON(fiber.Map{"status": "ok"})
+// 	})
+
+// 	// Public routes
+// 	api.Get("/buses/search", handler.SearchBuses(rdb))
+// 	api.Get("/buses/:id", handler.GetBusByID())
+
+// 	// Protected routes
+// 	protected := api.Group("", middleware.AuthRequired())
+// 	protected.Get("/seats/:schedule_id", handler.GetSeats(rdb))
+// 	protected.Post("/booking", handler.CreateBooking(cfg, rdb, producer))
+// 	protected.Get("/booking/:id", handler.GetBooking())
+// 	protected.Get("/bookings", handler.GetUserBookings())
+// 	protected.Delete("/booking/:id", handler.CancelBooking(cfg, rdb, producer))
+// 	protected.Get("/tracking/:bus_id", handler.GetTracking(rdb))
+
+// 	// WebSocket
+// 	protected.Get("/tracking/:bus_id/ws", handler.TrackingWebSocket(rdb))
+
+// 	// Admin routes
+// 	admin := api.Group("", middleware.AdminRequired())
+// 	admin.Post("/tracking/update", handler.UpdateTracking(rdb))
+// 	admin.Post("/qr/validate", handler.ValidateQR(cfg))
+// }

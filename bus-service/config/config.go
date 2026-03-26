@@ -23,21 +23,31 @@ type Config struct {
 func LoadEnv() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ .env file not found, using system env")
+	} else {
+		fmt.Println("✅ .env loaded successfully")
 	}
-	fmt.Println("✅ .env loaded successfully")
 }
+
+func mustGetEnv(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		log.Fatalf("❌ Missing required env: %s", key)
+	}
+	return val
+}
+
 func LoadConfig() *Config {
 	LoadEnv()
 
 	return &Config{
-		APP_PORT:                 os.Getenv("APP_PORT"),
-		DB_URL:                   os.Getenv("DB_URL"),
-		REDIS_HOST:               os.Getenv("REDIS_HOST"),
-		REDIS_PORT:               os.Getenv("REDIS_PORT"),
-		PAYMENT_SERVICE_GRPC_URL: os.Getenv("PAYMENT_SERVICE_GRPC_URL"),
-		KAFKA_BROKERS:            os.Getenv("KAFKA_BROKERS"),
-		PROVIDER_API_URL:         os.Getenv("PROVIDER_API_URL"),
-		PROVIDER_API_KEY:         os.Getenv("PROVIDER_API_KEY"),
-		JWT_SECRET:               os.Getenv("JWT_SECRET"),
+		APP_PORT:                 mustGetEnv("APP_PORT"),
+		DB_URL:                   mustGetEnv("DB_URL"),
+		REDIS_HOST:               mustGetEnv("REDIS_HOST"),
+		REDIS_PORT:               mustGetEnv("REDIS_PORT"),
+		PAYMENT_SERVICE_GRPC_URL: mustGetEnv("PAYMENT_SERVICE_GRPC_URL"),
+		KAFKA_BROKERS:            mustGetEnv("KAFKA_BROKERS"),
+		PROVIDER_API_URL:         mustGetEnv("PROVIDER_API_URL"),
+		PROVIDER_API_KEY:         mustGetEnv("PROVIDER_API_KEY"),
+		JWT_SECRET:               mustGetEnv("JWT_SECRET"),
 	}
 }
