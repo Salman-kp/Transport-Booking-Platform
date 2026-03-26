@@ -16,14 +16,19 @@ type Station struct {
 }
 
 type Train struct {
-	ID          uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	TrainNumber string        `gorm:"size:20;uniqueIndex;not null"`
-	TrainName   string        `gorm:"size:100;not null"`
-	DaysOfWeek  pq.Int32Array `gorm:"type:integer[];not null"`
-	IsActive    bool          `gorm:"default:true"`
-	Stops       []TrainStop   `gorm:"foreignKey:TrainID"` // Relationship for preloading
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                 uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	TrainNumber        string        `gorm:"size:20;uniqueIndex;not null"`
+	TrainName          string        `gorm:"size:100;not null"`
+	OriginStation      string        `gorm:"size:10;not null"`
+	DestinationStation string        `gorm:"size:10;not null"`
+	DepartureTime      string        `gorm:"size:10;not null"`
+	ArrivalTime        string        `gorm:"size:10;not null"`
+	DurationMinutes    int           `gorm:"not null"`
+	DaysOfWeek         pq.Int32Array `gorm:"type:integer[];not null"`
+	IsActive           bool          `gorm:"default:true"`
+	Stops              []TrainStop   `gorm:"foreignKey:TrainID"` // Relationship for preloading
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type TrainStop struct {

@@ -2,6 +2,7 @@ package seed
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 
 	"github.com/lib/pq"
@@ -54,20 +55,43 @@ func SeedTrains(tx *gorm.DB) error {
 	}
 
 	for _, r := range rawTrains {
-		train := models.Train{
-			TrainNumber: r.TrainNumber,
-			TrainName:   r.TrainName,
-			DaysOfWeek:  pq.Int32Array(r.DaysOfWeek),
-			IsActive:    r.IsActive,
+
+		var origin, destination, depTime, arrTime string
+		var totalDuration int
+		if len(r.Stops) > 0 {
+			firstStop := r.Stops[0]
+			lastStop := r.Stops[len(r.Stops)-1]
+
+			origin = firstStop.StationCode
+			depTime = firstStop.Departure
+
+			destination = lastStop.StationCode
+			arrTime = lastStop.Arrival
+			totalDuration = lastStop.Distance
 		}
-		if err := tx.Where("train_number = ?", train.TrainNumber).FirstOrCreate(&train).Error; err != nil {
+		train := models.Train{
+			TrainNumber:        r.TrainNumber,
+			TrainName:          r.TrainName,
+			OriginStation:      origin,
+			DestinationStation: destination,
+			DepartureTime:      depTime,
+			ArrivalTime:        arrTime,
+			DurationMinutes:    totalDuration,
+			DaysOfWeek:         pq.Int32Array(r.DaysOfWeek),
+			IsActive:           r.IsActive,
+		}
+		if err := tx.Where("train_number = ?", train.TrainNumber).
+			Assign(models.Train{OriginStation: origin, DestinationStation: destination, DepartureTime: depTime, ArrivalTime: arrTime, DurationMinutes: totalDuration}).
+			FirstOrCreate(&train).Error; err != nil {
 			return err
 		}
 
 		for _, stop := range r.Stops {
 			var station models.Station
-			tx.Where("code = ?", stop.StationCode).First(&station)
-
+			if err := tx.Where("code = ?", stop.StationCode).First(&station).Error; err != nil {
+				log.Printf("Warning: Station %s not found, skipping stop", stop.StationCode)
+				continue
+			}
 			trainStop := models.TrainStop{
 				TrainID:       train.ID,
 				StationID:     station.ID,
