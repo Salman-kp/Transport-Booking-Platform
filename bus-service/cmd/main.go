@@ -1,29 +1,39 @@
 package main
 
 import (
-	//"github.com/Salman-kp/tripneo/bus-service/cache"
 	"github.com/Salman-kp/tripneo/bus-service/config"
 	"github.com/Salman-kp/tripneo/bus-service/db"
+	// "github.com/Salman-kp/tripneo/bus-service/routes"
 
-	//	"github.com/Salman-kp/tripneo/bus-service/kafka"
-	//"github.com/Salman-kp/tripneo/bus-service/routes"
 	"log"
 
 	"github.com/gofiber/fiber/v3"
 )
 
 func main() {
+	// Load config
 	cfg := config.LoadConfig()
-	db.ConnectPostgres(cfg)
-	//	rdb := cache.NewRedisClient(cfg)
-	//	producer := kafka.NewProducer(cfg)
-	//	defer producer.Close()
 
+	// Connect to database
+	db.ConnectPostgres(cfg)
+
+	// Redis
+
+	// Service
+	// busService := service.NewBusService(rdb)
+
+	// // Handler
+	// busHandler := handler.NewBusHandler(busService)
+
+	// Fiber
 	app := fiber.New()
+
+	// Routes
+	// routes.Register(app, busHandler)
+
 	app.Get("/api/bus/health", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
-	//	routes.Register(app, cfg, rdb, producer)
 
 	if err := app.Listen(":" + cfg.APP_PORT); err != nil {
 		log.Fatal(err)
