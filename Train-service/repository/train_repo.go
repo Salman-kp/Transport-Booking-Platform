@@ -39,8 +39,8 @@ func SearchTrains(origin, destination, class string, date time.Time) ([]SearchRe
 			ts.id                     AS schedule_id,
 			t.train_number,
 			t.train_name,
-			t.origin_station,
-			t.destination_station,
+			s1.code                   AS origin_station,
+			s2.code                   AS destination_station,
 			ts.departure_at,
 			ts.arrival_at,
 			t.duration_minutes,
@@ -57,9 +57,14 @@ func SearchTrains(origin, destination, class string, date time.Time) ([]SearchRe
 			) AS price
 		FROM train_schedules ts
 		JOIN trains t ON t.id = ts.train_id
+		JOIN train_stops ts1 ON ts1.train_id = t.id
+		JOIN stations s1 ON s1.id = ts1.station_id
+		JOIN train_stops ts2 ON ts2.train_id = t.id
+		JOIN stations s2 ON s2.id = ts2.station_id
 		WHERE
-			t.origin_station      = ?
-			AND t.destination_station = ?
+			s1.code               = ?
+			AND s2.code           = ?
+			AND ts1.stop_sequence < ts2.stop_sequence
 			AND DATE(ts.departure_at) = ?
 			AND ts.status         != 'CANCELLED'
 			AND t.is_active       = true
@@ -70,7 +75,6 @@ func SearchTrains(origin, destination, class string, date time.Time) ([]SearchRe
 		origin, destination,
 		date.Format("2006-01-02"),
 	).Scan(&results).Error
-
 	if err != nil {
 		return nil, fmt.Errorf("search query failed: %w", err)
 	}
@@ -111,8 +115,6 @@ func GetTrainByID(trainID string) (*models.Train, error) {
 	return &train, nil
 }
 
-// availabilityColumn maps a class string to the correct
-// availability count column on train_schedules.
 func availabilityColumn(class string) string {
 	switch class {
 	case "SL":
