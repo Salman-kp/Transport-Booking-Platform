@@ -29,7 +29,6 @@ type SearchResult struct {
 func SearchTrains(origin, destination, class string, date time.Time) ([]SearchResult, error) {
 	var results []SearchResult
 
-	// Determine which availability column to check based on class
 	availCol := availabilityColumn(class)
 	if availCol == "" {
 		return nil, fmt.Errorf("invalid class: %s", class)
