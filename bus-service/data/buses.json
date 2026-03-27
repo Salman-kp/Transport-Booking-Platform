@@ -1,0 +1,41 @@
+[
+  {
+    "bus_number": "KA-01-F-1234",
+    "operator_code": "KSRTC",
+    "bus_type": "Volvo Multi-Axle Sleeper",
+    "origin_stop": "Majestic Bus Stop",
+    "destination_stop": "MG Bus Station",
+    "departure_time": "21:30",
+    "arrival_time": "06:00",
+    "duration_minutes": 510,
+    "days_of_week": [1, 2, 3, 4, 5, 6, 7],
+    "distance_km": 570,
+    "is_active": true
+  },
+  {
+    "bus_number": "MH-12-PQ-9090",
+    "operator_code": "VRL",
+    "bus_type": "Scania Semi-Sleeper",
+    "origin_stop": "Majestic Bus Stop",
+    "destination_stop": "Koyambedu Bus Terminus",
+    "departure_time": "22:00",
+    "arrival_time": "05:00",
+    "duration_minutes": 420,
+    "days_of_week": [1, 2, 3, 4, 5, 6, 7],
+    "distance_km": 350,
+    "is_active": true
+  },
+  {
+    "bus_number": "TS-09-RT-4567",
+    "operator_code": "SRS",
+    "bus_type": "Ashok Leyland Non-AC Seater",
+    "origin_stop": "MG Bus Station",
+    "destination_stop": "Majestic Bus Stop",
+    "departure_time": "08:00",
+    "arrival_time": "20:00",
+    "duration_minutes": 720,
+    "days_of_week": [1, 3, 5],
+    "distance_km": 570,
+    "is_active": true
+  }
+]

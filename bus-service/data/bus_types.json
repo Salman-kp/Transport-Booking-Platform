@@ -1,0 +1,35 @@
+[
+  {
+    "name": "Volvo Multi-Axle Sleeper",
+    "manufacturer": "Volvo",
+    "ac": true,
+    "seat_layout": {
+      "seater": {"rows": 0},
+      "semi_sleeper": {"rows": 0},
+      "sleeper": {"lower_berths": 14, "upper_berths": 14}
+    },
+    "amenities": ["WiFi", "USB Charging", "Blanket", "Reading Light", "Emergency Exit", "Water Bottle"]
+  },
+  {
+    "name": "Scania Semi-Sleeper",
+    "manufacturer": "Scania",
+    "ac": true,
+    "seat_layout": {
+      "seater": {"rows": 0},
+      "semi_sleeper": {"rows": 11},
+      "sleeper": {"lower_berths": 0, "upper_berths": 0}
+    },
+    "amenities": ["WiFi", "USB Charging", "Reading Light", "Emergency Exit", "Reclining Seats"]
+  },
+  {
+    "name": "Ashok Leyland Non-AC Seater",
+    "manufacturer": "Ashok Leyland",
+    "ac": false,
+    "seat_layout": {
+      "seater": {"rows": 12},
+      "semi_sleeper": {"rows": 0},
+      "sleeper": {"lower_berths": 0, "upper_berths": 0}
+    },
+    "amenities": ["Emergency Exit"]
+  }
+]

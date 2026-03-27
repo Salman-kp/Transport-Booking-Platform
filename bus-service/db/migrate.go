@@ -2,7 +2,7 @@ package db
 
 import (
 	"github.com/Salman-kp/tripneo/bus-service/config"
-	"github.com/Salman-kp/tripneo/bus-service/internal/model"
+	"github.com/Salman-kp/tripneo/bus-service/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
@@ -16,15 +16,23 @@ func ConnectPostgres(cfg *config.Config) {
 		log.Fatal("Failed to connect to PostgreSQL:", err)
 	}
 	if err = db.AutoMigrate(
+		&model.Operator{},
+		&model.BusStop{},
+		&model.BusType{},
 		&model.Bus{},
-		&model.Route{},
-		&model.Schedule{},
+		&model.BusInstance{},
+		&model.BoardingPoint{},
+		&model.DroppingPoint{},
+		&model.FareType{},
 		&model.Seat{},
+		&model.OperatorUser{},
+		&model.OperatorInventory{},
 		&model.Booking{},
-		&model.BookingSeat{},
-		&model.BusTracking{},
-		&model.Inventory{},
-		&model.QRScan{},
+		&model.Passenger{},
+		&model.CancellationPolicy{},
+		&model.Cancellation{},
+		&model.ETicket{},
+		&model.PricingRule{},
 	); err != nil {
 		log.Fatal("DB migration failed:", err)
 	}

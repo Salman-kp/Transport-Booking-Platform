@@ -1,0 +1,28 @@
+[
+  {
+    "bus_number": "KA-01-F-1234",
+    "travel_date": "2026-04-15",
+    "departure_at": "2026-04-15T21:30:00Z",
+    "arrival_at": "2026-04-16T06:00:00Z",
+    "status": "SCHEDULED",
+    "base_price_seater": 0,
+    "base_price_semi_sleeper": 0,
+    "base_price_sleeper": 1200.0,
+    "current_price_seater": 0,
+    "current_price_semi_sleeper": 0,
+    "current_price_sleeper": 1200.0
+  },
+  {
+    "bus_number": "MH-12-PQ-9090",
+    "travel_date": "2026-04-15",
+    "departure_at": "2026-04-15T22:00:00Z",
+    "arrival_at": "2026-04-16T05:00:00Z",
+    "status": "SCHEDULED",
+    "base_price_seater": 0,
+    "base_price_semi_sleeper": 900.0,
+    "base_price_sleeper": 0,
+    "current_price_seater": 0,
+    "current_price_semi_sleeper": 900.0,
+    "current_price_sleeper": 0
+  }
+]

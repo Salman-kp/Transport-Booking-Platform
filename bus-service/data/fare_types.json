@@ -1,0 +1,32 @@
+[
+  {
+    "bus_number": "KA-01-F-1234",
+    "travel_date": "2026-04-15",
+    "seat_type": "sleeper",
+    "name": "GENERAL",
+    "price": 1200.0,
+    "is_refundable": false,
+    "cancellation_fee": 1200.0,
+    "date_change_fee": 500.0
+  },
+  {
+    "bus_number": "KA-01-F-1234",
+    "travel_date": "2026-04-15",
+    "seat_type": "sleeper",
+    "name": "SUPER FLEXI",
+    "price": 1500.0,
+    "is_refundable": true,
+    "cancellation_fee": 300.0,
+    "date_change_fee": 0.0
+  },
+  {
+    "bus_number": "MH-12-PQ-9090",
+    "travel_date": "2026-04-15",
+    "seat_type": "semi_sleeper",
+    "name": "GENERAL",
+    "price": 900.0,
+    "is_refundable": false,
+    "cancellation_fee": 900.0,
+    "date_change_fee": 400.0
+  }
+]

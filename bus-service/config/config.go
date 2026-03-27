@@ -9,18 +9,35 @@ import (
 )
 
 type Config struct {
-	APP_PORT                 string
-	DB_URL                   string
-	REDIS_HOST               string
-	REDIS_PORT               string
-	PAYMENT_SERVICE_GRPC_URL string
-	KAFKA_BROKERS            string
-	PROVIDER_API_URL         string
-	PROVIDER_API_KEY         string
-	JWT_SECRET               string
+	PORT                            string
+	GRPC_PORT                       string
+	ENV                             string
+	DB_URL                          string
+	RUN_SEED_ON_BOOT                string
+	REDIS_HOST                      string
+	REDIS_PORT                      string
+	REDIS_PASSWORD                  string
+	KAFKA_BROKERS                   string
+	KAFKA_GROUP_ID                  string
+	AUTH_SERVICE_ADDR               string
+	PAYMENT_SERVICE_ADDR            string
+	QR_SERVICE_ADDR                 string
+	HMAC_SECRET                     string
+	PNR_SALT                        string
+	BOOKING_EXPIRY_MINUTES          string
+	SEAT_LOCK_MINUTES               string
+	PRICING_ENGINE_INTERVAL_MINUTES string
+	GPS_LOCATION_TTL_SECONDS        string
 }
 
 func LoadEnv() {
+	// Detect Docker environment
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		// Running inside Docker → skip loading .env file
+		return
+	}
+
+	// Local environment → load .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ .env file not found, using system env")
 	} else {
@@ -28,10 +45,18 @@ func LoadEnv() {
 	}
 }
 
-func mustGetEnv(key string) string {
+// func LoadEnv() {
+// 	if err := godotenv.Load(); err != nil {
+// 		log.Println("⚠️ .env file not found, using system env")
+// 	} else {
+// 		fmt.Println("✅ .env loaded successfully")
+// 	}
+// }
+
+func getEnv(key, fallback string) string {
 	val := os.Getenv(key)
 	if val == "" {
-		log.Fatalf("❌ Missing required env: %s", key)
+		return fallback
 	}
 	return val
 }
@@ -40,14 +65,24 @@ func LoadConfig() *Config {
 	LoadEnv()
 
 	return &Config{
-		APP_PORT:                 mustGetEnv("APP_PORT"),
-		DB_URL:                   mustGetEnv("DB_URL"),
-		REDIS_HOST:               mustGetEnv("REDIS_HOST"),
-		REDIS_PORT:               mustGetEnv("REDIS_PORT"),
-		PAYMENT_SERVICE_GRPC_URL: mustGetEnv("PAYMENT_SERVICE_GRPC_URL"),
-		KAFKA_BROKERS:            mustGetEnv("KAFKA_BROKERS"),
-		PROVIDER_API_URL:         mustGetEnv("PROVIDER_API_URL"),
-		PROVIDER_API_KEY:         mustGetEnv("PROVIDER_API_KEY"),
-		JWT_SECRET:               mustGetEnv("JWT_SECRET"),
+		PORT:                            getEnv("PORT", "8083"),
+		GRPC_PORT:                       getEnv("GRPC_PORT", "9092"),
+		ENV:                             getEnv("ENV", "development"),
+		DB_URL:                          getEnv("DB_URL", "host=localhost port=5432 user=postgres dbname=bus_service sslmode=disable"),
+		RUN_SEED_ON_BOOT:                getEnv("RUN_SEED_ON_BOOT", "false"),
+		REDIS_HOST:                      getEnv("REDIS_HOST", "localhost"),
+		REDIS_PORT:                      getEnv("REDIS_PORT", "6379"),
+		REDIS_PASSWORD:                  getEnv("REDIS_PASSWORD", ""),
+		KAFKA_BROKERS:                   getEnv("KAFKA_BROKERS", "localhost:9092"),
+		KAFKA_GROUP_ID:                  getEnv("KAFKA_GROUP_ID", "bus-service"),
+		AUTH_SERVICE_ADDR:               getEnv("AUTH_SERVICE_ADDR", "localhost:9091"),
+		PAYMENT_SERVICE_ADDR:            getEnv("PAYMENT_SERVICE_ADDR", "localhost:9093"),
+		QR_SERVICE_ADDR:                 getEnv("QR_SERVICE_ADDR", "localhost:9094"),
+		HMAC_SECRET:                     getEnv("HMAC_SECRET", "supersecret123"),
+		PNR_SALT:                        getEnv("PNR_SALT", "salt123"),
+		BOOKING_EXPIRY_MINUTES:          getEnv("BOOKING_EXPIRY_MINUTES", "15"),
+		SEAT_LOCK_MINUTES:               getEnv("SEAT_LOCK_MINUTES", "10"),
+		PRICING_ENGINE_INTERVAL_MINUTES: getEnv("PRICING_ENGINE_INTERVAL_MINUTES", "15"),
+		GPS_LOCATION_TTL_SECONDS:        getEnv("GPS_LOCATION_TTL_SECONDS", "90"),
 	}
 }

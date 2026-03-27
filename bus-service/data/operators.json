@@ -1,0 +1,35 @@
+[
+  {
+    "name": "KSRTC",
+    "operator_code": "KSRTC",
+    "contact_email": "contact@ksrtc.in",
+    "contact_phone": "1800-425-425",
+    "logo_url": "https://example.com/ksrtc.png",
+    "rating": 4.5,
+    "commission_rate": 5.0,
+    "status": "APPROVED",
+    "is_active": true
+  },
+  {
+    "name": "VRL Travels",
+    "operator_code": "VRL",
+    "contact_email": "support@vrltravels.com",
+    "contact_phone": "080-2642-1234",
+    "logo_url": "https://example.com/vrl.png",
+    "rating": 4.2,
+    "commission_rate": 6.0,
+    "status": "APPROVED",
+    "is_active": true
+  },
+  {
+    "name": "SRS Travels",
+    "operator_code": "SRS",
+    "contact_email": "info@srstravels.in",
+    "contact_phone": "1800-111-222",
+    "logo_url": "https://example.com/srs.png",
+    "rating": 3.9,
+    "commission_rate": 5.5,
+    "status": "APPROVED",
+    "is_active": true
+  }
+]

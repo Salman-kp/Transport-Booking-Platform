@@ -1,0 +1,20 @@
+[
+  {
+    "bus_number": "KA-01-F-1234",
+    "travel_date": "2026-04-15",
+    "stop_name": "MG Bus Station",
+    "city": "Hyderabad",
+    "drop_time": "2026-04-16T06:00:00Z",
+    "sequence_order": 1,
+    "landmark": "Platform 5"
+  },
+  {
+    "bus_number": "MH-12-PQ-9090",
+    "travel_date": "2026-04-15",
+    "stop_name": "Koyambedu Bus Terminus",
+    "city": "Chennai",
+    "drop_time": "2026-04-16T05:00:00Z",
+    "sequence_order": 1,
+    "landmark": "Omni Bus Stand"
+  }
+]

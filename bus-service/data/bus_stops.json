@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Majestic Bus Stop",
+    "city": "Bangalore",
+    "state": "Karnataka",
+    "country": "India",
+    "latitude": 12.9784,
+    "longitude": 77.5713
+  },
+  {
+    "name": "MG Bus Station",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "country": "India",
+    "latitude": 17.3787,
+    "longitude": 78.4831
+  },
+  {
+    "name": "Koyambedu Bus Terminus",
+    "city": "Chennai",
+    "state": "Tamil Nadu",
+    "country": "India",
+    "latitude": 13.0674,
+    "longitude": 80.1948
+  },
+  {
+    "name": "Secunderabad Station",
+    "city": "Hyderabad",
+    "state": "Telangana",
+    "country": "India",
+    "latitude": 17.4336,
+    "longitude": 78.5009
+  }
+]
