@@ -1,0 +1,15 @@
+[
+  { "name": "Ernakulam Junction", "code": "ERS", "city": "Kochi" },
+  { "name": "Aluva", "code": "AWY", "city": "Aluva" },
+  { "name": "Thrissur", "code": "TCR", "city": "Thrissur" },
+  { "name": "Palakkad Junction", "code": "PGT", "city": "Palakkad" },
+  { "name": "Coimbatore Junction", "code": "CBE", "city": "Coimbatore" },
+  { "name": "Tiruppur", "code": "TUP", "city": "Tiruppur" },
+  { "name": "Erode Junction", "code": "ED", "city": "Erode" },
+  { "name": "Salem Junction", "code": "SA", "city": "Salem" },
+  { "name": "Katpadi Junction", "code": "KPD", "city": "Vellore" },
+  { "name": "MGR Chennai Central", "code": "MAS", "city": "Chennai" },
+  { "name": "KSR Bengaluru City", "code": "SBC", "city": "Bengaluru" },
+  { "name": "Kozhikode", "code": "CLT", "city": "Kozhikode" },
+  { "name": "Mangaluru Central", "code": "MAQ", "city": "Mangaluru" }
+]

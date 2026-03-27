@@ -6,9 +6,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/nabeel-mp/tripneo/train-service/config"
 	"github.com/nabeel-mp/tripneo/train-service/db"
+	"github.com/nabeel-mp/tripneo/train-service/jobs"
 	"github.com/nabeel-mp/tripneo/train-service/redis"
 	"github.com/nabeel-mp/tripneo/train-service/routes"
-	"github.com/nabeel-mp/tripneo/train-service/service"
+	"github.com/nabeel-mp/tripneo/train-service/seed"
+	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -18,7 +20,16 @@ func main() {
 
 	rdb := redis.Client(cfg.REDIS_HOST, cfg.REDIS_PORT)
 
-	go service.RunInstanceGeneratorWorker()
+	seed.SeedAll(db.DB)
+
+	c := cron.New()
+	c.AddFunc("0 2 * * *", func() {
+		jobs.GenerateUpcomingInventory(db.DB, 30) // Runs every day at 2 AM
+	})
+	c.Start()
+
+	// Initial run on boot
+	go jobs.GenerateUpcomingInventory(db.DB, 30)
 
 	// kafka.InitProducer(cfg)
 

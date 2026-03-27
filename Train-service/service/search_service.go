@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/nabeel-mp/tripneo/train-service/repository"
@@ -13,40 +11,20 @@ import (
 
 const searchCacheTTL = 2 * time.Minute
 
-func SearchTrains(
-	ctx context.Context,
-	rdb *goredis.Client,
-	origin, destination, class, dateStr string,
-) ([]repository.SearchResult, error) {
-
-	// Parse date
-	date, err := time.Parse("2006-01-02", dateStr)
+func SearchTrains(ctx context.Context, rdb *goredis.Client, fromCode, toCode, dateStr, class string) ([]repository.SearchResult, error) {
+	parsedDate, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD")
+		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
 	}
 
-	// Build cache key
-	cacheKey := fmt.Sprintf("train:search:%s:%s:%s:%s", origin, destination, class, dateStr)
-
-	// Try cache first
-	cached, err := rdb.Get(ctx, cacheKey).Result()
-	if err == nil {
-		var results []repository.SearchResult
-		if jsonErr := json.Unmarshal([]byte(cached), &results); jsonErr == nil {
-			log.Printf("search cache hit: %s", cacheKey)
-			return results, nil
-		}
+	if class == "" {
+		class = "SL"
 	}
 
-	// Cache miss — query DB
-	results, err := repository.SearchTrains(origin, destination, class, date)
+	// Call the repository function
+	results, err := repository.SearchTrains(fromCode, toCode, class, parsedDate)
 	if err != nil {
-		return nil, err
-	}
-
-	// Cache the results
-	if data, jsonErr := json.Marshal(results); jsonErr == nil {
-		_ = rdb.Set(ctx, cacheKey, data, searchCacheTTL).Err()
+		return nil, fmt.Errorf("failed to search trains: %w", err)
 	}
 
 	return results, nil
@@ -58,7 +36,54 @@ func GetScheduleDetail(scheduleID string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return schedule, nil
+
+	// Define a custom struct to format the stop details nicely for the frontend
+	type StopDetail struct {
+		StationName     string `json:"station_name"`
+		StationCode     string `json:"station_code"`
+		StopSequence    int    `json:"stop_sequence"`
+		ActualArrival   string `json:"actual_arrival"`
+		ActualDeparture string `json:"actual_departure"`
+		DistanceKm      int    `json:"distance_km"`
+	}
+
+	var stopDetails []StopDetail
+
+	for _, stop := range schedule.Train.Stops {
+		arrTime, _ := time.Parse("15:04", stop.ArrivalTime)
+		depTime, _ := time.Parse("15:04", stop.DepartureTime)
+
+		baseDate := schedule.ScheduleDate.AddDate(0, 0, stop.DayOffset)
+
+		actualArr := time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(), arrTime.Hour(), arrTime.Minute(), 0, 0, schedule.ScheduleDate.Location())
+		actualDep := time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(), depTime.Hour(), depTime.Minute(), 0, 0, schedule.ScheduleDate.Location())
+
+		stopDetails = append(stopDetails, StopDetail{
+			StationName:     stop.Station.Name,
+			StationCode:     stop.Station.Code,
+			StopSequence:    stop.StopSequence,
+			ActualArrival:   actualArr.Format(time.RFC3339),
+			ActualDeparture: actualDep.Format(time.RFC3339),
+			DistanceKm:      stop.DistanceKm,
+		})
+	}
+
+	// Build the final detailed response
+	result := map[string]interface{}{
+		"schedule_id":   schedule.ID,
+		"train_number":  schedule.Train.TrainNumber,
+		"train_name":    schedule.Train.TrainName,
+		"schedule_date": schedule.ScheduleDate.Format("2006-01-02"),
+		"status":        schedule.Status,
+		"delay_minutes": schedule.DelayMinutes,
+		"available_sl":  schedule.AvailableSL,
+		"available_3ac": schedule.Available3AC,
+		"available_2ac": schedule.Available2AC,
+		"available_1ac": schedule.Available1AC,
+		"stops":         stopDetails, // This will now show the clean, calculated array!
+	}
+
+	return result, nil
 }
 
 func GetSeatMap(

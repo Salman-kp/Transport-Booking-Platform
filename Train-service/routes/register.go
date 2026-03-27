@@ -22,7 +22,6 @@ func Register(app *fiber.App, cfg *config.Config, rdb *goredis.Client) {
 
 	// --- Public routes ---
 	train.Get("/search", handlers.SearchTrains(rdb))
-
 	// --- Protected routes ---
 	train.Post("/book", middleware.ExtractUser(), handlers.BookTrain(rdb))
 	train.Get("/bookings/user/history", middleware.ExtractUser(), handlers.GetBookingHistory())

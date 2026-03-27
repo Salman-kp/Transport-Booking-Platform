@@ -23,7 +23,9 @@ func ConnectPostgres(cfg *config.Config) {
 	log.Println("Connected to PostgreSQL (train-service)")
 
 	err = db.AutoMigrate(
+		&models.Station{},
 		&models.Train{},
+		&models.TrainStop{},
 		&models.TrainSchedule{},
 		&models.TrainInventory{},
 		&models.TrainBooking{},
