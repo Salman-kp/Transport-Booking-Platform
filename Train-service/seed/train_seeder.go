@@ -4,12 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"strconv"
 
 	"github.com/lib/pq"
-	"github.com/nabeel-mp/tripneo/train-service/config"
 	"github.com/nabeel-mp/tripneo/train-service/models"
-	"github.com/nabeel-mp/tripneo/train-service/utils"
 	"gorm.io/gorm"
 )
 
@@ -106,86 +103,6 @@ func SeedTrains(tx *gorm.DB) error {
 			}
 			tx.Where("train_id = ? AND stop_sequence = ?", train.ID, stop.Sequence).FirstOrCreate(&trainStop)
 		}
-	}
-	return nil
-}
-
-func SeedTrainsFromAPI(tx *gorm.DB, cfg *config.Config) error {
-	trainNumbersToSeed := []string{"12004", "12951", "12431"}
-
-	for _, trainNo := range trainNumbersToSeed {
-		log.Printf("Fetching details for train %s from API...", trainNo)
-
-		apiData, err := utils.FetchTrainDetails(trainNo, cfg.RAPIDAPI_KEY, cfg.RAPIDAPI_HOST)
-		if err != nil {
-			log.Printf("Error fetching train %s: %v", trainNo, err)
-			continue
-		}
-
-		// Ensure we have route data
-		if len(apiData.Data.Route) == 0 {
-			log.Printf("Warning: Train %s returned empty route, skipping", trainNo)
-			continue
-		}
-
-		// Extract info from the nested 'Data' object
-		firstStop := apiData.Data.Route[0]
-		lastStop := apiData.Data.Route[len(apiData.Data.Route)-1]
-
-		origin := firstStop.StationCode
-		depTime := firstStop.DepartureTime
-		destination := lastStop.StationCode
-		arrTime := lastStop.ArrivalTime
-
-		// The API gives us Distance as a string (e.g., "0", "1250"), so we must convert it to an int
-		totalDuration, _ := strconv.Atoi(lastStop.Distance)
-
-		// 1. Create or Update the Train
-		train := models.Train{
-			TrainNumber:        apiData.Data.TrainNo,
-			TrainName:          apiData.Data.TrainName,
-			OriginStation:      origin,
-			DestinationStation: destination,
-			DepartureTime:      depTime,
-			ArrivalTime:        arrTime,
-			DurationMinutes:    totalDuration,
-			DaysOfWeek:         pq.Int32Array{1, 2, 3, 4, 5, 6, 7}, // Simplification for now
-			IsActive:           true,
-		}
-
-		if err := tx.Where("train_number = ?", train.TrainNumber).
-			Assign(train).
-			FirstOrCreate(&train).Error; err != nil {
-			return err
-		}
-
-		// 2. Iterate through the route and save the Stations and Train Stops
-		for _, stop := range apiData.Data.Route {
-			station := models.Station{
-				Code: stop.StationCode,
-				Name: stop.StationName,
-			}
-			tx.Where("code = ?", station.Code).FirstOrCreate(&station)
-
-			// Convert string distance to int
-			dist, _ := strconv.Atoi(stop.Distance)
-
-			trainStop := models.TrainStop{
-				TrainID:       train.ID,
-				StationID:     station.ID,
-				StopSequence:  stop.StnSerialNumber,
-				ArrivalTime:   stop.ArrivalTime,
-				DepartureTime: stop.DepartureTime,
-				DayOffset:     stop.Day,
-				DistanceKm:    dist,
-			}
-
-			tx.Where("train_id = ? AND stop_sequence = ?", train.ID, stop.StnSerialNumber).
-				Assign(trainStop).
-				FirstOrCreate(&trainStop)
-		}
-
-		log.Printf("Successfully seeded train %s", trainNo)
 	}
 	return nil
 }

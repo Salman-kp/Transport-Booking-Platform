@@ -48,5 +48,27 @@
       { "station_code": "CLT", "sequence": 7, "arrival": "07:07", "departure": "07:10", "day_offset": 1, "distance": 594 },
       { "station_code": "MAQ", "sequence": 8, "arrival": "11:20", "departure": "00:00", "day_offset": 1, "distance": 816 }
     ]
+  },
+  {
+    "train_number": "12624",
+    "train_name": "Chennai Mail",
+    "days_of_week": [1, 2, 3, 4, 5, 6, 7],
+    "is_active": true,
+    "stops": [
+      { "station_code": "TVC", "sequence": 1, "arrival": "00:00", "departure": "15:00", "day_offset": 0, "distance": 0 },
+      { "station_code": "ERS", "sequence": 2, "arrival": "19:15", "departure": "19:20", "day_offset": 0, "distance": 220 },
+      { "station_code": "MAS", "sequence": 3, "arrival": "07:40", "departure": "00:00", "day_offset": 1, "distance": 900 }
+    ]
+  },
+  {
+    "train_number": "12431",
+    "train_name": "Rajdhani Express",
+    "days_of_week": [1, 3, 6],
+    "is_active": true,
+    "stops": [
+      { "station_code": "TVC", "sequence": 1, "arrival": "00:00", "departure": "19:15", "day_offset": 0, "distance": 0 },
+      { "station_code": "MAO", "sequence": 2, "arrival": "10:00", "departure": "10:10", "day_offset": 1, "distance": 800 },
+      { "station_code": "NDLS", "sequence": 3, "arrival": "23:55", "departure": "00:00", "day_offset": 1, "distance": 2800 }
+    ]
   }
 ]

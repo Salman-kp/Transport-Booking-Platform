@@ -54,7 +54,7 @@ func CreateBooking(
 ) (*BookingResponse, error) {
 
 	// Step 1 — Validate schedule exists
-	schedule, err := repository.GetScheduleByID(req.TrainScheduleID)
+	_, err := repository.GetScheduleByID(req.TrainScheduleID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,31 +101,41 @@ func CreateBooking(
 	}
 
 	expiresAt := time.Now().Add(15 * time.Minute)
-
-	// Step 6 — DB transaction: create booking + seats + passengers
 	var booking models.TrainBooking
+
+	// Step 6 — DB transaction: create booking + update inventory + add passengers
 	txErr := db.DB.Transaction(func(tx *gorm.DB) error {
 
-		// Create booking record
+		// 6a. Create booking record
 		booking = models.TrainBooking{
-			PNR:             pnr,
-			UserID:          userID,
-			TrainScheduleID: uuid.MustParse(req.TrainScheduleID),
-			SeatClass:       req.Class,
-			Status:          "PENDING_PAYMENT",
-			BaseFare:        totalFare,
-			Taxes:           0,
-			ServiceFee:      serviceFee,
-			TotalAmount:     totalAmount,
-			Currency:        "INR",
-			BookedAt:        time.Now(),
-			ExpiresAt:       &expiresAt,
+			PNR:         pnr,
+			UserID:      userID,
+			ScheduleID:  uuid.MustParse(req.TrainScheduleID),
+			SeatClass:   req.Class,
+			Status:      "PENDING_PAYMENT",
+			BaseFare:    totalFare,
+			Taxes:       0,
+			ServiceFee:  serviceFee,
+			TotalAmount: totalAmount,
+			Currency:    "INR",
+			BookedAt:    time.Now(),
+			ExpiresAt:   &expiresAt,
 		}
 		if err := repository.CreateBooking(tx, &booking); err != nil {
 			return err
 		}
 
-		// Create BookingSeat join records
+		// 6b. Update Seat Statuses in DB to prevent concurrent reads picking them up
+		if err := repository.UpdateSeatStatuses(tx, req.SeatIDs, "PENDING_PAYMENT"); err != nil {
+			return err
+		}
+
+		// 6c. Decrement overall schedule availability
+		if err := repository.DecrementAvailability(tx, req.TrainScheduleID, req.Class, len(req.SeatIDs)); err != nil {
+			return err
+		}
+
+		// 6d. Create BookingSeat join records
 		bookingSeats := make([]models.BookingSeat, len(req.SeatIDs))
 		for i, seatID := range req.SeatIDs {
 			seatUUID := uuid.MustParse(seatID)
@@ -138,13 +148,14 @@ func CreateBooking(
 			return err
 		}
 
-		// Create Passenger records
+		// 6e. Create Passenger records
 		passengers := make([]models.Passenger, len(req.Passengers))
 		for i, p := range req.Passengers {
 			dob, parseErr := time.Parse("2006-01-02", p.DOB)
 			if parseErr != nil {
 				return fmt.Errorf("invalid DOB for passenger %d: %w", i, parseErr)
 			}
+
 			var seatIDPtr *uuid.UUID
 			if p.SeatID != "" && p.PassengerType != "infant" {
 				sUID := uuid.MustParse(p.SeatID)
@@ -164,16 +175,12 @@ func CreateBooking(
 				IsPrimary:      p.IsPrimary,
 			}
 		}
-		if err := repository.CreatePassengers(tx, passengers); err != nil {
-			return err
-		}
 
-		_ = schedule // used for context, schedule data is in booking
-		return nil
+		return repository.CreatePassengers(tx, passengers)
 	})
 
 	if txErr != nil {
-		// Transaction failed — release all Redis locks
+		// Transaction failed — release all Redis locks so others can book
 		_ = utils.UnlockSeats(ctx, rdb, req.TrainScheduleID, req.SeatIDs)
 		return nil, txErr
 	}
@@ -184,7 +191,7 @@ func CreateBooking(
 		Status:      booking.Status,
 		TotalAmount: booking.TotalAmount,
 		ExpiresAt:   expiresAt,
-		PaymentURL:  "",
+		PaymentURL:  "", // To be integrated with a payment gateway
 	}, nil
 }
 
@@ -241,27 +248,27 @@ func CancelBookingByUser(
 
 	var cancellation models.Cancellation
 	txErr := db.DB.Transaction(func(tx *gorm.DB) error {
-		// Cancel booking
+		// 1. Cancel booking
 		if err := repository.CancelBooking(tx, bookingID); err != nil {
 			return err
 		}
 
-		// Restore seats to AVAILABLE
-		if err := repository.MarkSeatsAvailable(tx, seatIDs); err != nil {
+		// 2. Restore seats to AVAILABLE
+		if err := repository.UpdateSeatStatuses(tx, seatIDs, "AVAILABLE"); err != nil {
 			return err
 		}
 
-		// Restore availability count on schedule
+		// 3. Restore availability count on schedule
 		if err := repository.IncrementAvailability(
 			tx,
-			booking.TrainScheduleID.String(),
+			booking.ScheduleID.String(),
 			booking.SeatClass,
 			len(seatIDs),
 		); err != nil {
 			return err
 		}
 
-		// Write cancellation record
+		// 4. Write cancellation record
 		policyID := policy.ID
 		cancellation = models.Cancellation{
 			BookingID:       booking.ID,
@@ -277,8 +284,8 @@ func CancelBookingByUser(
 		return nil, txErr
 	}
 
-	// Release Redis seat locks (already expired if booking was PENDING_PAYMENT)
-	_ = utils.UnlockSeats(ctx, rdb, booking.TrainScheduleID.String(), seatIDs)
+	// Release Redis seat locks (already expired if booking was PENDING_PAYMENT, but safe to call)
+	_ = utils.UnlockSeats(ctx, rdb, booking.ScheduleID.String(), seatIDs)
 
 	return &cancellation, nil
 }

@@ -11,5 +11,16 @@
   { "name": "MGR Chennai Central", "code": "MAS", "city": "Chennai" },
   { "name": "KSR Bengaluru City", "code": "SBC", "city": "Bengaluru" },
   { "name": "Kozhikode", "code": "CLT", "city": "Kozhikode" },
-  { "name": "Mangaluru Central", "code": "MAQ", "city": "Mangaluru" }
+  { "name": "Mangaluru Central", "code": "MAQ", "city": "Mangaluru" },
+  { "name": "Madgaon Junction", "code": "MAO", "city": "Goa" },
+  { "name": "Ernakulam Junction", "code": "ERS", "city": "Kochi" },
+  { "name": "MGR Chennai Central", "code": "MAS", "city": "Chennai" },
+  { "name": "KSR Bengaluru City", "code": "SBC", "city": "Bengaluru" },
+  { "name": "New Delhi", "code": "NDLS", "city": "Delhi" },
+  { "name": "Mumbai Central", "code": "MMCT", "city": "Mumbai" },
+  { "name": "Howrah Junction", "code": "HWH", "city": "Kolkata" },
+  { "name": "Pune Junction", "code": "PUNE", "city": "Pune" },
+  { "name": "Hyderabad Deccan", "code": "HYB", "city": "Hyderabad" },
+  { "name": "Ahmedabad Junction", "code": "ADI", "city": "Ahmedabad" },
+  { "name": "Thiruvananthapuram Central", "code": "TVC", "city": "Trivandrum" }
 ]
