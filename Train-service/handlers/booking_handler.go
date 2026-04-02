@@ -6,6 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
 	domainerrors "github.com/nabeel-mp/tripneo/train-service/domain_errors"
+	"github.com/nabeel-mp/tripneo/train-service/kafka"
 	"github.com/nabeel-mp/tripneo/train-service/service"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -13,7 +14,7 @@ import (
 var validate = validator.New()
 
 // BookTrain handles POST /api/train/book
-func BookTrain(rdb *goredis.Client) fiber.Handler {
+func BookTrain(rdb *goredis.Client, producer *kafka.Producer) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		userID, _ := c.Locals("userID").(string)
 
@@ -25,7 +26,7 @@ func BookTrain(rdb *goredis.Client) fiber.Handler {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
 
-		resp, err := service.CreateBooking(c.Context(), rdb, userID, req)
+		resp, err := service.CreateBooking(c.Context(), rdb, userID, req, producer)
 		if err != nil {
 			statusCode := mapDomainErrorToStatus(err)
 			return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
@@ -63,12 +64,12 @@ func GetBookingHistory() fiber.Handler {
 }
 
 // CancelBooking handles POST /api/train/bookings/:id/cancel
-func CancelBooking(rdb *goredis.Client) fiber.Handler {
+func CancelBooking(rdb *goredis.Client, producer *kafka.Producer) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		userID, _ := c.Locals("userID").(string)
 		bookingID := c.Params("id")
 
-		cancellation, err := service.CancelBookingByUser(c.Context(), rdb, bookingID, userID)
+		cancellation, err := service.CancelBookingByUser(c.Context(), rdb, bookingID, userID, producer)
 		if err != nil {
 			return c.Status(mapDomainErrorToStatus(err)).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -77,6 +78,27 @@ func CancelBooking(rdb *goredis.Client) fiber.Handler {
 			"refund_amount": cancellation.RefundAmount,
 			"refund_status": cancellation.RefundStatus,
 		})
+	}
+}
+
+// GetBookingPassengers handles GET /api/train/bookings/:id/passengers
+func GetBookingPassengers() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		userID, _ := c.Locals("userID").(string)
+		bookingID := c.Params("id")
+
+		// Ownership check
+		booking, err := service.GetBooking(bookingID, userID)
+		if err != nil {
+			return c.Status(mapDomainErrorToStatus(err)).JSON(fiber.Map{"error": err.Error()})
+		}
+		_ = booking
+
+		passengers, err := service.GetPassengers(bookingID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(200).JSON(fiber.Map{"passengers": passengers})
 	}
 }
 

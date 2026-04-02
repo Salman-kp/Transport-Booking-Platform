@@ -16,7 +16,6 @@ import (
 )
 
 // GetClasses handles GET /api/train/:id/classes
-// Returns per-class availability and average price for a schedule.
 func GetClasses() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		scheduleID := c.Params("id")
@@ -33,14 +32,13 @@ func GetClasses() fiber.Handler {
 		}
 
 		classes := []struct {
-			column string
-			name   string
-			avail  int
+			name  string
+			avail int
 		}{
-			{"SL", "SL", schedule.AvailableSL},
-			{"3AC", "3AC", schedule.Available3AC},
-			{"2AC", "2AC", schedule.Available2AC},
-			{"1AC", "1AC", schedule.Available1AC},
+			{"SL", schedule.AvailableSL},
+			{"3AC", schedule.Available3AC},
+			{"2AC", schedule.Available2AC},
+			{"1AC", schedule.Available1AC},
 		}
 
 		result := make([]ClassInfo, 0)
@@ -108,7 +106,7 @@ func UnlockSeat(rdb *goredis.Client) fiber.Handler {
 }
 
 // PaymentCallback handles POST /api/train/internal/payment/callback
-// Called by Payment Service directly (no user auth, internal endpoint).
+// Called directly by the Payment Service (no user auth — internal endpoint only).
 func PaymentCallback(rdb *goredis.Client, producer *kafka.Producer) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		var req struct {
@@ -145,6 +143,19 @@ func PaymentCallback(rdb *goredis.Client, producer *kafka.Producer) fiber.Handle
 
 			_ = utils.UnlockSeats(ctx, rdb, booking.ScheduleID.String(), seatIDs)
 
+			// Issue ticket now that payment is confirmed
+			ticketNumber := "TKT-" + booking.PNR + "-" + time.Now().Format("20060102")
+			ticket := models.TrainTicket{
+				BookingID:    booking.ID,
+				TicketNumber: ticketNumber,
+				QRCodeURL:    "/api/train/tickets/" + booking.ID.String() + "/qr",
+				QRData:       utils.GenerateQRToken(booking.ID.String()),
+				IssuedAt:     time.Now(),
+			}
+			if err := db.DB.Create(&ticket).Error; err != nil {
+				log.Printf("[callback] Warning: ticket creation failed for booking %s: %v", req.BookingID, err)
+			}
+
 			producer.PublishBookingConfirmed(ctx, kafka.BookingConfirmedEvent{
 				BookingID:   booking.ID.String(),
 				PNR:         booking.PNR,
@@ -166,7 +177,7 @@ func PaymentCallback(rdb *goredis.Client, producer *kafka.Producer) fiber.Handle
 			return c.Status(200).JSON(fiber.Map{"message": "booking confirmed"})
 		}
 
-		// FAILED
+		// --- FAILED branch ---
 		seatIDs, _ := repository.GetSeatIDsByBooking(req.BookingID)
 		db.DB.Transaction(func(tx *gorm.DB) error {
 			repository.UpdateBookingStatus(tx, req.BookingID, "FAILED")
@@ -177,18 +188,20 @@ func PaymentCallback(rdb *goredis.Client, producer *kafka.Producer) fiber.Handle
 		_ = utils.UnlockSeats(ctx, rdb, booking.ScheduleID.String(), seatIDs)
 
 		log.Printf("[callback] Booking %s FAILED via callback", req.BookingID)
-
-		// Issue a ticket for the confirmed booking
-		ticketNumber := "TKT-" + booking.PNR + "-" + time.Now().Format("20060102")
-		ticket := models.TrainTicket{
-			BookingID:    booking.ID,
-			TicketNumber: ticketNumber,
-			QRCodeURL:    "/api/train/tickets/" + booking.ID.String() + "/qr",
-			QRData:       utils.GenerateQRToken(booking.ID.String()),
-			IssuedAt:     time.Now(),
-		}
-		db.DB.Create(&ticket)
-
 		return c.Status(200).JSON(fiber.Map{"message": "booking marked failed"})
+	}
+}
+
+// GetStations handles GET /api/train/stations
+func GetStations() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		var stations []models.Station
+		if err := db.DB.Order("city ASC, name ASC").Find(&stations).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch stations"})
+		}
+		return c.Status(200).JSON(fiber.Map{
+			"count":    len(stations),
+			"stations": stations,
+		})
 	}
 }

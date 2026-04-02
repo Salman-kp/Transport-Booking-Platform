@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nabeel-mp/tripneo/train-service/db"
 	domainerrors "github.com/nabeel-mp/tripneo/train-service/domain_errors"
+	"github.com/nabeel-mp/tripneo/train-service/kafka"
 	"github.com/nabeel-mp/tripneo/train-service/models"
 	"github.com/nabeel-mp/tripneo/train-service/repository"
 	"github.com/nabeel-mp/tripneo/train-service/utils"
@@ -18,19 +19,21 @@ import (
 
 type BookingRequest struct {
 	TrainScheduleID string             `json:"train_schedule_id" validate:"required,uuid"`
-	Class           string             `json:"class"             validate:"required,oneof=SL 3AC 2AC 1AC"`
-	SeatIDs         []string           `json:"seat_ids"          validate:"required,min=1"`
-	Passengers      []PassengerRequest `json:"passengers"        validate:"required,min=1"`
+	FromStationCode string             `json:"from_station_code"  validate:"required"`
+	ToStationCode   string             `json:"to_station_code"    validate:"required"`
+	Class           string             `json:"class"              validate:"required,oneof=SL 3AC 2AC 1AC"`
+	SeatIDs         []string           `json:"seat_ids"           validate:"required,min=1"`
+	Passengers      []PassengerRequest `json:"passengers"         validate:"required,min=1"`
 }
 
 type PassengerRequest struct {
-	FirstName      string `json:"first_name"       validate:"required"`
-	LastName       string `json:"last_name"        validate:"required"`
-	DOB            string `json:"dob"              validate:"required"` // YYYY-MM-DD
-	Gender         string `json:"gender"           validate:"required,oneof=male female other"`
-	PassengerType  string `json:"passenger_type"   validate:"required,oneof=adult child infant"`
-	IDType         string `json:"id_type"          validate:"required,oneof=AADHAAR PAN PASSPORT"`
-	IDNumber       string `json:"id_number"        validate:"required"`
+	FirstName      string `json:"first_name"      validate:"required"`
+	LastName       string `json:"last_name"       validate:"required"`
+	DOB            string `json:"dob"             validate:"required"` // YYYY-MM-DD
+	Gender         string `json:"gender"          validate:"required,oneof=male female other"`
+	PassengerType  string `json:"passenger_type"  validate:"required,oneof=adult child infant"`
+	IDType         string `json:"id_type"         validate:"required,oneof=AADHAAR PAN PASSPORT"`
+	IDNumber       string `json:"id_number"       validate:"required"`
 	MealPreference string `json:"meal_preference"`
 	IsPrimary      bool   `json:"is_primary"`
 	SeatID         string `json:"seat_id"` // empty for infants
@@ -43,7 +46,33 @@ type BookingResponse struct {
 	Status      string    `json:"status"`
 	TotalAmount float64   `json:"total_amount"`
 	ExpiresAt   time.Time `json:"expires_at"`
-	PaymentURL  string    `json:"payment_url"`
+	// PaymentURL would be populated by the payment service; left empty until integrated.
+	PaymentURL string `json:"payment_url"`
+}
+
+// resolveStopTime returns the absolute departure/arrival datetime for a given
+// station code within a schedule, based on the train's stop data + DayOffset.
+func resolveStopTime(schedule *models.TrainSchedule, stationCode string, departure bool) time.Time {
+	baseDate := schedule.ScheduleDate
+	for _, stop := range schedule.Train.Stops {
+		if stop.Station.Code != stationCode {
+			continue
+		}
+		timeStr := stop.ArrivalTime
+		if departure {
+			timeStr = stop.DepartureTime
+		}
+		var h, m int
+		fmt.Sscanf(timeStr, "%d:%d", &h, &m)
+		offsetDate := baseDate.AddDate(0, 0, stop.DayOffset)
+		return time.Date(offsetDate.Year(), offsetDate.Month(), offsetDate.Day(),
+			h, m, 0, 0, time.Local)
+	}
+	// Fallback to schedule-level times if stop not found
+	if departure {
+		return schedule.DepartureAt
+	}
+	return schedule.ArrivalAt
 }
 
 func CreateBooking(
@@ -51,15 +80,43 @@ func CreateBooking(
 	rdb *goredis.Client,
 	userID string,
 	req BookingRequest,
+	producer *kafka.Producer,
 ) (*BookingResponse, error) {
 
-	// Step 1 — Validate schedule exists
-	_, err := repository.GetScheduleByID(req.TrainScheduleID)
+	// Step 1 — Validate schedule exists and preload stops + stations
+	schedule, err := repository.GetScheduleByID(req.TrainScheduleID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Step 2 — Validate all requested seats exist and are AVAILABLE
+	// Step 2 — Resolve boarding/alighting stations from the schedule's stops
+	var fromStation, toStation models.Station
+	var fromStop, toStop *models.TrainStop
+	for i := range schedule.Train.Stops {
+		s := &schedule.Train.Stops[i]
+		if s.Station.Code == req.FromStationCode {
+			fromStation = s.Station
+			fromStop = s
+		}
+		if s.Station.Code == req.ToStationCode {
+			toStation = s.Station
+			toStop = s
+		}
+	}
+	if fromStop == nil {
+		return nil, fmt.Errorf("station %s is not a stop on this train", req.FromStationCode)
+	}
+	if toStop == nil {
+		return nil, fmt.Errorf("station %s is not a stop on this train", req.ToStationCode)
+	}
+	if fromStop.StopSequence >= toStop.StopSequence {
+		return nil, fmt.Errorf("from_station must come before to_station on this route")
+	}
+
+	departureTime := resolveStopTime(schedule, req.FromStationCode, true)
+	arrivalTime := resolveStopTime(schedule, req.ToStationCode, false)
+
+	// Step 3 — Validate all requested seats exist and are AVAILABLE
 	seats, err := repository.GetSeatsByIDs(req.SeatIDs)
 	if err != nil {
 		return nil, err
@@ -76,7 +133,7 @@ func CreateBooking(
 		}
 	}
 
-	// Step 3 — Lock all seats in Redis (all-or-nothing, atomic per seat)
+	// Step 4 — Lock all seats in Redis (all-or-nothing)
 	lockErr, conflictSeatID := utils.LockSeats(ctx, rdb, req.TrainScheduleID, req.SeatIDs, userID)
 	if lockErr != nil {
 		return nil, fmt.Errorf("seat lock redis error: %w", lockErr)
@@ -85,7 +142,7 @@ func CreateBooking(
 		return nil, domainerrors.ErrSeatAlreadyLocked
 	}
 
-	// Step 4 — Calculate total price
+	// Step 5 — Calculate total price
 	var totalFare float64
 	for _, seat := range seats {
 		totalFare += seat.Price
@@ -93,7 +150,7 @@ func CreateBooking(
 	serviceFee := math.Round(totalFare*0.02*100) / 100 // 2% service fee
 	totalAmount := totalFare + serviceFee
 
-	// Step 5 — Generate PNR (retry on collision handled by DB unique constraint)
+	// Step 6 — Generate PNR
 	pnr, err := utils.GeneratePNR()
 	if err != nil {
 		_ = utils.UnlockSeats(ctx, rdb, req.TrainScheduleID, req.SeatIDs)
@@ -103,39 +160,39 @@ func CreateBooking(
 	expiresAt := time.Now().Add(15 * time.Minute)
 	var booking models.TrainBooking
 
-	// Step 6 — DB transaction: create booking + update inventory + add passengers
+	// Step 7 — DB transaction
 	txErr := db.DB.Transaction(func(tx *gorm.DB) error {
 
-		// 6a. Create booking record
 		booking = models.TrainBooking{
-			PNR:         pnr,
-			UserID:      userID,
-			ScheduleID:  uuid.MustParse(req.TrainScheduleID),
-			SeatClass:   req.Class,
-			Status:      "PENDING_PAYMENT",
-			BaseFare:    totalFare,
-			Taxes:       0,
-			ServiceFee:  serviceFee,
-			TotalAmount: totalAmount,
-			Currency:    "INR",
-			BookedAt:    time.Now(),
-			ExpiresAt:   &expiresAt,
+			PNR:           pnr,
+			UserID:        userID,
+			ScheduleID:    uuid.MustParse(req.TrainScheduleID),
+			FromStationID: fromStation.ID,
+			ToStationID:   toStation.ID,
+			DepartureTime: departureTime,
+			ArrivalTime:   arrivalTime,
+			SeatClass:     req.Class,
+			Status:        "PENDING_PAYMENT",
+			BaseFare:      totalFare,
+			Taxes:         0,
+			ServiceFee:    serviceFee,
+			TotalAmount:   totalAmount,
+			Currency:      "INR",
+			BookedAt:      time.Now(),
+			ExpiresAt:     &expiresAt,
 		}
 		if err := repository.CreateBooking(tx, &booking); err != nil {
 			return err
 		}
 
-		// 6b. Update Seat Statuses in DB to prevent concurrent reads picking them up
 		if err := repository.UpdateSeatStatuses(tx, req.SeatIDs, "PENDING_PAYMENT"); err != nil {
 			return err
 		}
 
-		// 6c. Decrement overall schedule availability
 		if err := repository.DecrementAvailability(tx, req.TrainScheduleID, req.Class, len(req.SeatIDs)); err != nil {
 			return err
 		}
 
-		// 6d. Create BookingSeat join records
 		bookingSeats := make([]models.BookingSeat, len(req.SeatIDs))
 		for i, seatID := range req.SeatIDs {
 			seatUUID := uuid.MustParse(seatID)
@@ -148,14 +205,12 @@ func CreateBooking(
 			return err
 		}
 
-		// 6e. Create Passenger records
 		passengers := make([]models.Passenger, len(req.Passengers))
 		for i, p := range req.Passengers {
 			dob, parseErr := time.Parse("2006-01-02", p.DOB)
 			if parseErr != nil {
 				return fmt.Errorf("invalid DOB for passenger %d: %w", i, parseErr)
 			}
-
 			var seatIDPtr *uuid.UUID
 			if p.SeatID != "" && p.PassengerType != "infant" {
 				sUID := uuid.MustParse(p.SeatID)
@@ -175,15 +230,28 @@ func CreateBooking(
 				IsPrimary:      p.IsPrimary,
 			}
 		}
-
 		return repository.CreatePassengers(tx, passengers)
 	})
 
 	if txErr != nil {
-		// Transaction failed — release all Redis locks so others can book
 		_ = utils.UnlockSeats(ctx, rdb, req.TrainScheduleID, req.SeatIDs)
 		return nil, txErr
 	}
+
+	// Step 8 — Publish BookingCreated event (payment service listens to this)
+	producer.PublishBookingCreated(ctx, kafka.BookingCreatedEvent{
+		BookingID:      booking.ID.String(),
+		PNR:            booking.PNR,
+		UserID:         booking.UserID,
+		TrainName:      schedule.Train.TrainName,
+		TrainNumber:    schedule.Train.TrainNumber,
+		From:           req.FromStationCode,
+		To:             req.ToStationCode,
+		Departure:      departureTime.Format(time.RFC3339),
+		Class:          req.Class,
+		TotalAmount:    booking.TotalAmount,
+		PassengerCount: len(req.Passengers),
+	})
 
 	return &BookingResponse{
 		BookingID:   booking.ID.String(),
@@ -191,7 +259,7 @@ func CreateBooking(
 		Status:      booking.Status,
 		TotalAmount: booking.TotalAmount,
 		ExpiresAt:   expiresAt,
-		PaymentURL:  "", // To be integrated with a payment gateway
+		PaymentURL:  "", // populated by payment service after it consumes train.booking.created
 	}, nil
 }
 
@@ -216,6 +284,7 @@ func CancelBookingByUser(
 	ctx context.Context,
 	rdb *goredis.Client,
 	bookingID, userID string,
+	producer *kafka.Producer,
 ) (*models.Cancellation, error) {
 
 	booking, err := repository.GetBookingByID(bookingID)
@@ -229,10 +298,8 @@ func CancelBookingByUser(
 		return nil, domainerrors.ErrCannotCancel
 	}
 
-	// Calculate hours until departure
 	hoursLeft := int(time.Until(booking.TrainSchedule.DepartureAt).Hours())
 
-	// Get applicable refund policy
 	policy, err := repository.GetActiveCancellationPolicy(hoursLeft)
 	if err != nil {
 		return nil, err
@@ -240,7 +307,6 @@ func CancelBookingByUser(
 
 	refundAmount := booking.TotalAmount * (policy.RefundPercentage / 100)
 
-	// Get seat IDs for this booking
 	seatIDs, err := repository.GetSeatIDsByBooking(bookingID)
 	if err != nil {
 		return nil, err
@@ -248,27 +314,17 @@ func CancelBookingByUser(
 
 	var cancellation models.Cancellation
 	txErr := db.DB.Transaction(func(tx *gorm.DB) error {
-		// 1. Cancel booking
 		if err := repository.CancelBooking(tx, bookingID); err != nil {
 			return err
 		}
-
-		// 2. Restore seats to AVAILABLE
 		if err := repository.UpdateSeatStatuses(tx, seatIDs, "AVAILABLE"); err != nil {
 			return err
 		}
-
-		// 3. Restore availability count on schedule
 		if err := repository.IncrementAvailability(
-			tx,
-			booking.ScheduleID.String(),
-			booking.SeatClass,
-			len(seatIDs),
+			tx, booking.ScheduleID.String(), booking.SeatClass, len(seatIDs),
 		); err != nil {
 			return err
 		}
-
-		// 4. Write cancellation record
 		policyID := policy.ID
 		cancellation = models.Cancellation{
 			BookingID:       booking.ID,
@@ -284,8 +340,18 @@ func CancelBookingByUser(
 		return nil, txErr
 	}
 
-	// Release Redis seat locks (already expired if booking was PENDING_PAYMENT, but safe to call)
 	_ = utils.UnlockSeats(ctx, rdb, booking.ScheduleID.String(), seatIDs)
+
+	// Notify payment service to process refund (if booking was CONFIRMED)
+	if booking.Status == "CONFIRMED" {
+		producer.PublishBookingCancelled(ctx, kafka.BookingCancelledEvent{
+			BookingID:    booking.ID.String(),
+			PNR:          booking.PNR,
+			UserID:       booking.UserID,
+			RefundAmount: refundAmount,
+			Reason:       "user_requested",
+		})
+	}
 
 	return &cancellation, nil
 }

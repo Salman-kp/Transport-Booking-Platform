@@ -23,14 +23,16 @@ func Register(app *fiber.App, cfg *config.Config, rdb *goredis.Client, producer 
 
 	// ── Public routes ────────────────────────────────────────────────
 	train.Get("/search", handlers.SearchTrains(rdb))
+	train.Get("/stations", handlers.GetStations())
 	train.Post("/tickets/verify", handlers.VerifyTicket())
 
 	// ── Protected — Bookings ─────────────────────────────────────────
 	auth := middleware.ExtractUser()
-	train.Post("/book", auth, handlers.BookTrain(rdb))
+	train.Post("/book", auth, handlers.BookTrain(rdb, producer))
 	train.Get("/bookings/user/history", auth, handlers.GetBookingHistory())
 	train.Get("/bookings/:id", auth, handlers.GetBooking(rdb))
-	train.Post("/bookings/:id/cancel", auth, handlers.CancelBooking(rdb))
+	train.Get("/bookings/:id/passengers", auth, handlers.GetBookingPassengers())
+	train.Post("/bookings/:id/cancel", auth, handlers.CancelBooking(rdb, producer))
 	train.Get("/tickets/:booking_id", auth, handlers.GetTicket())
 
 	// ── Internal (called by Payment Service — no user auth) ──────────
@@ -47,7 +49,7 @@ func Register(app *fiber.App, cfg *config.Config, rdb *goredis.Client, producer 
 	admin.Get("/analytics/revenue", handlers.AdminGetRevenue())
 	admin.Put("/pricing-rules/:id", handlers.AdminUpdatePricingRule())
 
-	// ── Dynamic :id routes (must come LAST to avoid Fiber param conflicts) ──
+	// ── Dynamic :id routes (MUST come last to avoid param conflicts) ──
 	train.Get("/:id/classes", handlers.GetClasses())
 	train.Get("/:id/live-status", handlers.GetLiveStatus(rdb))
 	train.Get("/:id/seats", handlers.GetSeatMap(rdb))
