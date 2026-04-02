@@ -36,15 +36,14 @@ func runPricingPass(db *gorm.DB) {
 		log.Printf("[pricing-engine] Failed to fetch rules: %v", err)
 		return
 	}
-	if len(rules) == 0 {
-		return
-	}
 
 	// Fetch upcoming schedules (next 30 days)
+	// We Preload Train.Stops so we can calculate the price based on the number of stops
 	cutoff := time.Now().AddDate(0, 0, 30)
 	var schedules []models.TrainSchedule
-	if err := db.Where("departure_at > ? AND departure_at < ? AND status != 'CANCELLED'",
-		time.Now(), cutoff).Find(&schedules).Error; err != nil {
+	if err := db.Preload("Train.Stops").
+		Where("departure_at > ? AND departure_at < ? AND status != 'CANCELLED'", time.Now(), cutoff).
+		Find(&schedules).Error; err != nil {
 		log.Printf("[pricing-engine] Failed to fetch schedules: %v", err)
 		return
 	}
@@ -71,15 +70,51 @@ func runPricingPass(db *gorm.DB) {
 			}
 		}
 
-		for _, item := range inventory {
-			multiplier := applyRules(rules, item, schedule, totalByClass, soldByClass)
-			newPrice := item.WholesalePrice * 1.15 * multiplier // base margin 15%
-			// Round to 2 decimal places
-			newPrice = float64(int(newPrice*100+0.5)) / 100
+		// Calculate total stops for this train to factor into the price
+		stopCount := len(schedule.Train.Stops)
+		// Assume a fixed addition per stop. You can modify this value (e.g., 20.0 per stop)
+		pricePerStop := 20.0
+		stopsPriceAdded := float64(stopCount) * pricePerStop
 
+		for _, item := range inventory {
+			// 1. BASE PRICE + STOPS PRICE
+			basePrice := 100.0 + stopsPriceAdded
+
+			// 2. CLASS MULTIPLIER
+			classMultiplier := 1.0
+			switch item.Class {
+			case "SL":
+				classMultiplier = 1.0 // Standard
+			case "3AC":
+				classMultiplier = 2.5 // 2.5x of Sleeper
+			case "2AC":
+				classMultiplier = 4.0 // 4x of Sleeper
+			case "1AC":
+				classMultiplier = 6.0 // 6x of Sleeper
+			}
+
+			// 3. BERTH MULTIPLIER
+			berthMultiplier := 1.0
+			switch item.BerthType {
+			case "LOWER", "SIDE_LOWER":
+				berthMultiplier = 1.10 // 10% Premium for lower berths
+			case "MIDDLE", "UPPER", "SIDE_UPPER":
+				berthMultiplier = 1.00 // Standard
+			}
+
+			// 4. DYNAMIC PRICING MULTIPLIER (Demand, Time to Departure, Seasonal rules)
+			dynamicMultiplier := applyRules(rules, item, schedule, totalByClass, soldByClass)
+
+			// 5. FINAL CALCULATION
+			finalPrice := basePrice * classMultiplier * berthMultiplier * dynamicMultiplier
+
+			// Round to 2 decimal places
+			finalPrice = float64(int(finalPrice*100+0.5)) / 100
+
+			// Update price in DB
 			if err := db.Model(&models.TrainInventory{}).
 				Where("id = ?", item.ID).
-				Update("price", newPrice).Error; err != nil {
+				Update("price", finalPrice).Error; err != nil {
 				log.Printf("[pricing-engine] Failed to update price for seat %s: %v", item.ID, err)
 			} else {
 				updated++
@@ -94,6 +129,10 @@ func applyRules(rules []models.PricingRule, item models.TrainInventory, schedule
 	totalByClass, soldByClass map[string]int) float64 {
 
 	multiplier := 1.0
+	if len(rules) == 0 {
+		return multiplier
+	}
+
 	daysBeforeDep := time.Until(schedule.DepartureAt).Hours() / 24
 
 	for _, rule := range rules {
