@@ -2,6 +2,7 @@ package seed
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
@@ -15,18 +16,23 @@ func SeedStations(tx *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-
 	var stations []models.Station
 	if err := json.Unmarshal(bytes, &stations); err != nil {
 		return err
 	}
-
 	for _, s := range stations {
 		if err := tx.Where("code = ?", s.Code).FirstOrCreate(&s).Error; err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// parseMinutes converts "HH:MM" to total minutes since midnight.
+func parseMinutes(t string) int {
+	var h, m int
+	fmt.Sscanf(t, "%d:%d", &h, &m)
+	return h*60 + m
 }
 
 func SeedTrains(tx *gorm.DB) error {
@@ -55,9 +61,9 @@ func SeedTrains(tx *gorm.DB) error {
 	}
 
 	for _, r := range rawTrains {
-
 		var origin, destination, depTime, arrTime string
-		var totalDuration int
+		var durationMinutes int
+
 		if len(r.Stops) > 0 {
 			firstStop := r.Stops[0]
 			lastStop := r.Stops[len(r.Stops)-1]
@@ -67,8 +73,16 @@ func SeedTrains(tx *gorm.DB) error {
 
 			destination = lastStop.StationCode
 			arrTime = lastStop.Arrival
-			totalDuration = lastStop.Distance
+
+			// Calculate actual duration: handle day-offset overnight journeys
+			depMins := parseMinutes(firstStop.Departure)
+			arrMins := parseMinutes(lastStop.Arrival) + (lastStop.DayOffset * 24 * 60)
+			durationMinutes = arrMins - depMins
+			if durationMinutes < 0 {
+				durationMinutes = 0
+			}
 		}
+
 		train := models.Train{
 			TrainNumber:        r.TrainNumber,
 			TrainName:          r.TrainName,
@@ -76,12 +90,19 @@ func SeedTrains(tx *gorm.DB) error {
 			DestinationStation: destination,
 			DepartureTime:      depTime,
 			ArrivalTime:        arrTime,
-			DurationMinutes:    totalDuration,
+			DurationMinutes:    durationMinutes,
 			DaysOfWeek:         pq.Int32Array(r.DaysOfWeek),
 			IsActive:           r.IsActive,
 		}
+
 		if err := tx.Where("train_number = ?", train.TrainNumber).
-			Assign(models.Train{OriginStation: origin, DestinationStation: destination, DepartureTime: depTime, ArrivalTime: arrTime, DurationMinutes: totalDuration}).
+			Assign(models.Train{
+				OriginStation:      origin,
+				DestinationStation: destination,
+				DepartureTime:      depTime,
+				ArrivalTime:        arrTime,
+				DurationMinutes:    durationMinutes,
+			}).
 			FirstOrCreate(&train).Error; err != nil {
 			return err
 		}
@@ -101,7 +122,8 @@ func SeedTrains(tx *gorm.DB) error {
 				DayOffset:     stop.DayOffset,
 				DistanceKm:    stop.Distance,
 			}
-			tx.Where("train_id = ? AND stop_sequence = ?", train.ID, stop.Sequence).FirstOrCreate(&trainStop)
+			tx.Where("train_id = ? AND stop_sequence = ?", train.ID, stop.Sequence).
+				FirstOrCreate(&trainStop)
 		}
 	}
 	return nil

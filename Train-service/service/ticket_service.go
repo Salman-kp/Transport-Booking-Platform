@@ -44,7 +44,7 @@ func VerifyTicket(bookingID, token string) (interface{}, error) {
 	}
 
 	// Validate HMAC token to ensure the QR wasn't faked
-	valid := utils.VerifyQRToken(bookingID, token)
+	valid := utils.VerifyQRTokenSimple(bookingID, token)
 	if !valid {
 		return nil, fmt.Errorf("invalid or tampered QR token")
 	}

@@ -11,19 +11,19 @@ import (
 )
 
 type SearchResult struct {
-	ScheduleID     string    `json:"schedule_id"`
-	TrainNumber    string    `json:"train_number"`
-	TrainName      string    `json:"train_name"`
-	OriginStation  string    `json:"origin_station"`
-	DestStation    string    `json:"destination_station"`
-	DepartureAt    time.Time `json:"departure_at"`
-	ArrivalAt      time.Time `json:"arrival_at"`
-	DurationMins   int       `json:"duration_minutes"`
-	DelayMinutes   int       `json:"delay_minutes"`
-	Status         string    `json:"status"`
-	Class          string    `json:"class"`
-	AvailableSeats int       `json:"available_seats"`
-	Price          float64   `json:"price"`
+	ScheduleID         string    `json:"schedule_id"`
+	TrainNumber        string    `json:"train_number"`
+	TrainName          string    `json:"train_name"`
+	OriginStation      string    `json:"origin_station"`
+	DestinationStation string    `json:"destination_station"`
+	DepartureAt        time.Time `json:"departure_at"`
+	ArrivalAt          time.Time `json:"arrival_at"`
+	DurationMinutes    int       `json:"duration_minutes"`
+	DelayMinutes       int       `json:"delay_minutes"`
+	Status             string    `json:"status"`
+	Class              string    `json:"class"`
+	AvailableSeats     int       `json:"available_seats"`
+	Price              float64   `json:"price"`
 }
 
 func SearchTrains(origin, destination, class string, date time.Time) ([]SearchResult, error) {

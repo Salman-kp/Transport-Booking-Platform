@@ -162,3 +162,7 @@ func GetTicketByBookingID(bookingID string) (*models.TrainTicket, error) {
 	}
 	return &ticket, nil
 }
+
+func UpdateSeatStatuses(tx *gorm.DB, seatIDs []string, status string) error {
+	return tx.Model(&models.TrainInventory{}).Where("id IN ?", seatIDs).Update("status", status).Error
+}

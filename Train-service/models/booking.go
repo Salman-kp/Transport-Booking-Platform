@@ -8,11 +8,11 @@ import (
 
 // TrainBooking is the core booking record.
 type TrainBooking struct {
-	ID              uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	PNR             string        `gorm:"size:6;uniqueIndex;not null"`
-	UserID          string        `gorm:"size:36;not null;index"`
-	TrainScheduleID uuid.UUID     `gorm:"type:uuid;not null;index"`
-	TrainSchedule   TrainSchedule `gorm:"foreignKey:TrainScheduleID"`
+	ID            uuid.UUID     `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	PNR           string        `gorm:"size:6;uniqueIndex;not null"`
+	UserID        string        `gorm:"size:36;not null;index"`
+	ScheduleID    uuid.UUID     `gorm:"type:uuid;not null;index"`
+	TrainSchedule TrainSchedule `gorm:"foreignKey:ScheduleID"`
 
 	// Missing fields added below to fix service compilation errors
 	FromStationID uuid.UUID `gorm:"type:uuid;not null"`

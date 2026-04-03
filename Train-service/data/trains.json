@@ -1,52 +1,121 @@
 [
   {
     "train_number": "12624",
-    "train_name": "Trivandrum - Chennai Mail",
+    "train_name": "Trivandrum – Chennai Mail",
     "days_of_week": [1, 2, 3, 4, 5, 6, 7],
     "is_active": true,
     "stops": [
-      { "station_code": "ERS", "sequence": 1, "arrival": "00:00", "departure": "19:20", "day_offset": 0, "distance": 0 },
-      { "station_code": "AWY", "sequence": 2, "arrival": "19:43", "departure": "19:45", "day_offset": 0, "distance": 19 },
-      { "station_code": "TCR", "sequence": 3, "arrival": "20:40", "departure": "20:43", "day_offset": 0, "distance": 74 },
-      { "station_code": "PGT", "sequence": 4, "arrival": "22:17", "departure": "22:20", "day_offset": 0, "distance": 149 },
-      { "station_code": "CBE", "sequence": 5, "arrival": "23:42", "departure": "23:45", "day_offset": 0, "distance": 205 },
-      { "station_code": "ED",  "sequence": 6, "arrival": "01:10", "departure": "01:15", "day_offset": 1, "distance": 305 },
-      { "station_code": "SA",  "sequence": 7, "arrival": "02:07", "departure": "02:10", "day_offset": 1, "distance": 365 },
-      { "station_code": "KPD", "sequence": 8, "arrival": "05:08", "departure": "05:10", "day_offset": 1, "distance": 570 },
-      { "station_code": "MAS", "sequence": 9, "arrival": "07:45", "departure": "00:00", "day_offset": 1, "distance": 700 }
+      { "station_code": "ERS",  "sequence": 1, "arrival": "00:00", "departure": "19:20", "day_offset": 0, "distance": 0 },
+      { "station_code": "AWY",  "sequence": 2, "arrival": "19:43", "departure": "19:45", "day_offset": 0, "distance": 19 },
+      { "station_code": "TCR",  "sequence": 3, "arrival": "20:40", "departure": "20:43", "day_offset": 0, "distance": 74 },
+      { "station_code": "PGT",  "sequence": 4, "arrival": "22:17", "departure": "22:20", "day_offset": 0, "distance": 149 },
+      { "station_code": "CBE",  "sequence": 5, "arrival": "23:42", "departure": "23:45", "day_offset": 0, "distance": 205 },
+      { "station_code": "ED",   "sequence": 6, "arrival": "01:10", "departure": "01:15", "day_offset": 1, "distance": 305 },
+      { "station_code": "SA",   "sequence": 7, "arrival": "02:07", "departure": "02:10", "day_offset": 1, "distance": 365 },
+      { "station_code": "KPD",  "sequence": 8, "arrival": "05:08", "departure": "05:10", "day_offset": 1, "distance": 570 },
+      { "station_code": "MAS",  "sequence": 9, "arrival": "07:45", "departure": "00:00", "day_offset": 1, "distance": 700 }
     ]
   },
   {
     "train_number": "12678",
-    "train_name": "Ernakulam - KSR Bengaluru Intercity Exp",
+    "train_name": "Ernakulam – KSR Bengaluru Intercity Exp",
     "days_of_week": [1, 2, 3, 4, 5, 6, 7],
     "is_active": true,
     "stops": [
-      { "station_code": "ERS", "sequence": 1, "arrival": "00:00", "departure": "09:10", "day_offset": 0, "distance": 0 },
-      { "station_code": "AWY", "sequence": 2, "arrival": "09:30", "departure": "09:32", "day_offset": 0, "distance": 19 },
-      { "station_code": "TCR", "sequence": 3, "arrival": "10:18", "departure": "10:20", "day_offset": 0, "distance": 74 },
-      { "station_code": "PGT", "sequence": 4, "arrival": "11:57", "departure": "12:00", "day_offset": 0, "distance": 149 },
-      { "station_code": "CBE", "sequence": 5, "arrival": "13:22", "departure": "13:25", "day_offset": 0, "distance": 205 },
-      { "station_code": "TUP", "sequence": 6, "arrival": "14:13", "departure": "14:15", "day_offset": 0, "distance": 255 },
-      { "station_code": "ED",  "sequence": 7, "arrival": "14:55", "departure": "15:00", "day_offset": 0, "distance": 305 },
-      { "station_code": "SA",  "sequence": 8, "arrival": "15:57", "departure": "16:00", "day_offset": 0, "distance": 365 },
-      { "station_code": "SBC", "sequence": 9, "arrival": "19:50", "departure": "00:00", "day_offset": 0, "distance": 613 }
+      { "station_code": "ERS",  "sequence": 1, "arrival": "00:00", "departure": "09:10", "day_offset": 0, "distance": 0 },
+      { "station_code": "AWY",  "sequence": 2, "arrival": "09:30", "departure": "09:32", "day_offset": 0, "distance": 19 },
+      { "station_code": "TCR",  "sequence": 3, "arrival": "10:18", "departure": "10:20", "day_offset": 0, "distance": 74 },
+      { "station_code": "PGT",  "sequence": 4, "arrival": "11:57", "departure": "12:00", "day_offset": 0, "distance": 149 },
+      { "station_code": "CBE",  "sequence": 5, "arrival": "13:22", "departure": "13:25", "day_offset": 0, "distance": 205 },
+      { "station_code": "TUP",  "sequence": 6, "arrival": "14:13", "departure": "14:15", "day_offset": 0, "distance": 255 },
+      { "station_code": "ED",   "sequence": 7, "arrival": "14:55", "departure": "15:00", "day_offset": 0, "distance": 305 },
+      { "station_code": "SA",   "sequence": 8, "arrival": "15:57", "departure": "16:00", "day_offset": 0, "distance": 365 },
+      { "station_code": "SBC",  "sequence": 9, "arrival": "19:50", "departure": "00:00", "day_offset": 0, "distance": 613 }
     ]
   },
   {
     "train_number": "16528",
-    "train_name": "Yesvantpur - Kannur Express",
+    "train_name": "Yesvantpur – Kannur Express",
     "days_of_week": [1, 2, 3, 4, 5, 6, 7],
     "is_active": true,
     "stops": [
-      { "station_code": "SBC", "sequence": 1, "arrival": "00:00", "departure": "20:00", "day_offset": 0, "distance": 0 },
-      { "station_code": "SA",  "sequence": 2, "arrival": "00:32", "departure": "00:35", "day_offset": 1, "distance": 248 },
-      { "station_code": "ED",  "sequence": 3, "arrival": "01:30", "departure": "01:35", "day_offset": 1, "distance": 308 },
-      { "station_code": "TUP", "sequence": 4, "arrival": "02:18", "departure": "02:20", "day_offset": 1, "distance": 358 },
-      { "station_code": "CBE", "sequence": 5, "arrival": "03:12", "departure": "03:15", "day_offset": 1, "distance": 408 },
-      { "station_code": "PGT", "sequence": 6, "arrival": "04:40", "departure": "04:45", "day_offset": 1, "distance": 464 },
-      { "station_code": "CLT", "sequence": 7, "arrival": "07:07", "departure": "07:10", "day_offset": 1, "distance": 594 },
-      { "station_code": "MAQ", "sequence": 8, "arrival": "11:20", "departure": "00:00", "day_offset": 1, "distance": 816 }
+      { "station_code": "SBC",  "sequence": 1, "arrival": "00:00", "departure": "20:00", "day_offset": 0, "distance": 0 },
+      { "station_code": "SA",   "sequence": 2, "arrival": "00:32", "departure": "00:35", "day_offset": 1, "distance": 248 },
+      { "station_code": "ED",   "sequence": 3, "arrival": "01:30", "departure": "01:35", "day_offset": 1, "distance": 308 },
+      { "station_code": "TUP",  "sequence": 4, "arrival": "02:18", "departure": "02:20", "day_offset": 1, "distance": 358 },
+      { "station_code": "CBE",  "sequence": 5, "arrival": "03:12", "departure": "03:15", "day_offset": 1, "distance": 408 },
+      { "station_code": "PGT",  "sequence": 6, "arrival": "04:40", "departure": "04:45", "day_offset": 1, "distance": 464 },
+      { "station_code": "CLT",  "sequence": 7, "arrival": "07:07", "departure": "07:10", "day_offset": 1, "distance": 594 },
+      { "station_code": "CAN",  "sequence": 8, "arrival": "08:25", "departure": "08:28", "day_offset": 1, "distance": 650 },
+      { "station_code": "MAQ",  "sequence": 9, "arrival": "11:20", "departure": "00:00", "day_offset": 1, "distance": 816 }
+    ]
+  },
+  {
+    "train_number": "12625",
+    "train_name": "Kerala Express (TVC – MAS)",
+    "days_of_week": [1, 2, 3, 4, 5, 6, 7],
+    "is_active": true,
+    "stops": [
+      { "station_code": "TVC",  "sequence": 1, "arrival": "00:00", "departure": "15:00", "day_offset": 0, "distance": 0 },
+      { "station_code": "ERS",  "sequence": 2, "arrival": "19:15", "departure": "19:20", "day_offset": 0, "distance": 220 },
+      { "station_code": "TCR",  "sequence": 3, "arrival": "20:40", "departure": "20:43", "day_offset": 0, "distance": 295 },
+      { "station_code": "CBE",  "sequence": 4, "arrival": "23:42", "departure": "23:45", "day_offset": 0, "distance": 425 },
+      { "station_code": "SA",   "sequence": 5, "arrival": "02:07", "departure": "02:10", "day_offset": 1, "distance": 585 },
+      { "station_code": "MAS",  "sequence": 6, "arrival": "07:40", "departure": "00:00", "day_offset": 1, "distance": 920 }
+    ]
+  },
+  {
+    "train_number": "12431",
+    "train_name": "Rajdhani Express (TVC – NDLS)",
+    "days_of_week": [1, 3, 6],
+    "is_active": true,
+    "stops": [
+      { "station_code": "TVC",  "sequence": 1, "arrival": "00:00", "departure": "19:15", "day_offset": 0, "distance": 0 },
+      { "station_code": "ERS",  "sequence": 2, "arrival": "23:10", "departure": "23:15", "day_offset": 0, "distance": 220 },
+      { "station_code": "MAO",  "sequence": 3, "arrival": "10:00", "departure": "10:10", "day_offset": 1, "distance": 1020 },
+      { "station_code": "MMCT", "sequence": 4, "arrival": "18:30", "departure": "18:40", "day_offset": 1, "distance": 1700 },
+      { "station_code": "NDLS", "sequence": 5, "arrival": "23:55", "departure": "00:00", "day_offset": 2, "distance": 3100 }
+    ]
+  },
+  {
+    "train_number": "12027",
+    "train_name": "Chennai Shatabdi (MAS – CBE)",
+    "days_of_week": [1, 2, 3, 4, 5, 6, 7],
+    "is_active": true,
+    "stops": [
+      { "station_code": "MAS",  "sequence": 1, "arrival": "00:00", "departure": "06:00", "day_offset": 0, "distance": 0 },
+      { "station_code": "SA",   "sequence": 2, "arrival": "09:00", "departure": "09:05", "day_offset": 0, "distance": 335 },
+      { "station_code": "ED",   "sequence": 3, "arrival": "09:55", "departure": "10:00", "day_offset": 0, "distance": 395 },
+      { "station_code": "TUP",  "sequence": 4, "arrival": "10:48", "departure": "10:50", "day_offset": 0, "distance": 445 },
+      { "station_code": "CBE",  "sequence": 5, "arrival": "11:30", "departure": "00:00", "day_offset": 0, "distance": 495 }
+    ]
+  },
+  {
+    "train_number": "22660",
+    "train_name": "Kochuveli – Dehradun Express",
+    "days_of_week": [2, 5],
+    "is_active": true,
+    "stops": [
+      { "station_code": "TVC",  "sequence": 1, "arrival": "00:00", "departure": "12:30", "day_offset": 0, "distance": 0 },
+      { "station_code": "ERS",  "sequence": 2, "arrival": "16:30", "departure": "16:35", "day_offset": 0, "distance": 220 },
+      { "station_code": "PGT",  "sequence": 3, "arrival": "19:45", "departure": "19:50", "day_offset": 0, "distance": 369 },
+      { "station_code": "CBE",  "sequence": 4, "arrival": "21:15", "departure": "21:20", "day_offset": 0, "distance": 425 },
+      { "station_code": "SBC",  "sequence": 5, "arrival": "02:30", "departure": "02:45", "day_offset": 1, "distance": 833 },
+      { "station_code": "NDLS", "sequence": 6, "arrival": "06:00", "departure": "00:00", "day_offset": 3, "distance": 3400 }
+    ]
+  },
+  {
+    "train_number": "16382",
+    "train_name": "Kanyakumari – Mumbai Express",
+    "days_of_week": [3, 7],
+    "is_active": true,
+    "stops": [
+      { "station_code": "TVC",  "sequence": 1, "arrival": "00:00", "departure": "11:30", "day_offset": 0, "distance": 0 },
+      { "station_code": "ERS",  "sequence": 2, "arrival": "15:30", "departure": "15:35", "day_offset": 0, "distance": 220 },
+      { "station_code": "CLT",  "sequence": 3, "arrival": "18:30", "departure": "18:35", "day_offset": 0, "distance": 400 },
+      { "station_code": "MAQ",  "sequence": 4, "arrival": "21:50", "departure": "22:00", "day_offset": 0, "distance": 607 },
+      { "station_code": "MAO",  "sequence": 5, "arrival": "05:00", "departure": "05:10", "day_offset": 1, "distance": 870 },
+      { "station_code": "MMCT", "sequence": 6, "arrival": "13:45", "departure": "00:00", "day_offset": 1, "distance": 1550 }
     ]
   }
 ]

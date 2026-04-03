@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -9,35 +10,51 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-const searchCacheTTL = 2 * time.Minute
+const searchCacheTTL = 5 * time.Minute
 
-func SearchTrains(ctx context.Context, rdb *goredis.Client, fromCode, toCode, dateStr, class string) ([]repository.SearchResult, error) {
+func SearchTrains(
+	ctx context.Context,
+	rdb *goredis.Client,
+	fromCode, toCode, dateStr, class string,
+) ([]repository.SearchResult, error) {
+
 	parsedDate, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date format, expected YYYY-MM-DD: %w", err)
 	}
-
 	if class == "" {
 		class = "SL"
 	}
 
-	// Call the repository function
+	// --- Redis cache check ---
+	cacheKey := fmt.Sprintf("search:%s:%s:%s:%s", fromCode, toCode, dateStr, class)
+	if cached, err := rdb.Get(ctx, cacheKey).Result(); err == nil {
+		var results []repository.SearchResult
+		if jsonErr := json.Unmarshal([]byte(cached), &results); jsonErr == nil {
+			return results, nil
+		}
+	}
+
 	results, err := repository.SearchTrains(fromCode, toCode, class, parsedDate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search trains: %w", err)
 	}
 
+	// Cache the result (ignore cache write errors)
+	if data, marshalErr := json.Marshal(results); marshalErr == nil {
+		rdb.Set(ctx, cacheKey, data, searchCacheTTL)
+	}
+
 	return results, nil
 }
 
-// GetScheduleDetail returns a single schedule with its train details.
+// GetScheduleDetail returns a single schedule with its train details and resolved stop times.
 func GetScheduleDetail(scheduleID string) (interface{}, error) {
 	schedule, err := repository.GetScheduleByID(scheduleID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Define a custom struct to format the stop details nicely for the frontend
 	type StopDetail struct {
 		StationName     string `json:"station_name"`
 		StationCode     string `json:"station_code"`
@@ -45,18 +62,21 @@ func GetScheduleDetail(scheduleID string) (interface{}, error) {
 		ActualArrival   string `json:"actual_arrival"`
 		ActualDeparture string `json:"actual_departure"`
 		DistanceKm      int    `json:"distance_km"`
+		DayOffset       int    `json:"day_offset"`
 	}
 
 	var stopDetails []StopDetail
-
 	for _, stop := range schedule.Train.Stops {
 		arrTime, _ := time.Parse("15:04", stop.ArrivalTime)
 		depTime, _ := time.Parse("15:04", stop.DepartureTime)
 
 		baseDate := schedule.ScheduleDate.AddDate(0, 0, stop.DayOffset)
+		loc := schedule.ScheduleDate.Location()
 
-		actualArr := time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(), arrTime.Hour(), arrTime.Minute(), 0, 0, schedule.ScheduleDate.Location())
-		actualDep := time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(), depTime.Hour(), depTime.Minute(), 0, 0, schedule.ScheduleDate.Location())
+		actualArr := time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(),
+			arrTime.Hour(), arrTime.Minute(), 0, 0, loc)
+		actualDep := time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(),
+			depTime.Hour(), depTime.Minute(), 0, 0, loc)
 
 		stopDetails = append(stopDetails, StopDetail{
 			StationName:     stop.Station.Name,
@@ -65,22 +85,24 @@ func GetScheduleDetail(scheduleID string) (interface{}, error) {
 			ActualArrival:   actualArr.Format(time.RFC3339),
 			ActualDeparture: actualDep.Format(time.RFC3339),
 			DistanceKm:      stop.DistanceKm,
+			DayOffset:       stop.DayOffset,
 		})
 	}
 
-	// Build the final detailed response
 	result := map[string]interface{}{
 		"schedule_id":   schedule.ID,
 		"train_number":  schedule.Train.TrainNumber,
 		"train_name":    schedule.Train.TrainName,
 		"schedule_date": schedule.ScheduleDate.Format("2006-01-02"),
-		"status":        schedule.Status,
+		"departure_at":  schedule.DepartureAt.Format(time.RFC3339),
+		"arrival_at":    schedule.ArrivalAt.Format(time.RFC3339),
 		"delay_minutes": schedule.DelayMinutes,
+		"status":        schedule.Status,
 		"available_sl":  schedule.AvailableSL,
 		"available_3ac": schedule.Available3AC,
 		"available_2ac": schedule.Available2AC,
 		"available_1ac": schedule.Available1AC,
-		"stops":         stopDetails, // This will now show the clean, calculated array!
+		"stops":         stopDetails,
 	}
 
 	return result, nil
@@ -111,7 +133,6 @@ func GetSeatMap(
 	for i, s := range seats {
 		isLocked := false
 		if s.Status == "AVAILABLE" {
-			// Check Redis lock — display only, not for booking gate
 			locked, _ := checkLockStatus(ctx, rdb, scheduleID, s.ID.String())
 			isLocked = locked
 		}
@@ -129,7 +150,6 @@ func GetSeatMap(
 	return result, nil
 }
 
-// checkLockStatus is an internal helper that reads the Redis lock key.
 func checkLockStatus(ctx context.Context, rdb *goredis.Client, scheduleID, seatID string) (bool, error) {
 	key := fmt.Sprintf("seat:lock:train:%s:%s", scheduleID, seatID)
 	_, err := rdb.Get(ctx, key).Result()

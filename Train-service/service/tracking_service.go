@@ -4,75 +4,70 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/nabeel-mp/tripneo/train-service/repository"
+	"github.com/nabeel-mp/tripneo/train-service/utils"
 	goredis "github.com/redis/go-redis/v9"
 )
 
-const trackingCacheTTL = 30 * time.Second
+const trackingCacheTTL = 1 * time.Minute
 
-// TrackingResult is the live status response.
 type TrackingResult struct {
 	TrainNumber    string    `json:"train_number"`
-	TrainName      string    `json:"train_name"`
 	CurrentStation string    `json:"current_station"`
 	NextStation    string    `json:"next_station"`
 	DelayMinutes   int       `json:"delay_minutes"`
 	Latitude       float64   `json:"latitude"`
 	Longitude      float64   `json:"longitude"`
-	Status         string    `json:"status"`
-	Stale          bool      `json:"stale"`
 	LastUpdated    time.Time `json:"last_updated"`
+	Source         string    `json:"source"`
 }
 
-func GetLiveStatus(
-	ctx context.Context,
-	rdb *goredis.Client,
-	scheduleID string,
-) (*TrackingResult, error) {
-
+func GetLiveStatus(ctx context.Context, rdb *goredis.Client, scheduleID string) (*TrackingResult, error) {
 	schedule, err := repository.GetScheduleByID(scheduleID)
 	if err != nil {
 		return nil, err
 	}
 
-	trainNumber := schedule.Train.TrainNumber
-	cacheKey := fmt.Sprintf("train:status:%s", trainNumber)
+	cacheKey := fmt.Sprintf("live:%s", schedule.Train.TrainNumber)
 
-	// Check cache
-	cached, err := rdb.Get(ctx, cacheKey).Result()
+	// 1. Try Redis Cache
+	if cached, err := rdb.Get(ctx, cacheKey).Result(); err == nil {
+		var res TrackingResult
+		json.Unmarshal([]byte(cached), &res)
+		return &res, nil
+	}
+
+	// 2. Try External API
+	externalData, err := utils.FetchLiveStatusFromExternalAPI(schedule.Train.TrainNumber)
+	var finalResult TrackingResult
+
 	if err == nil {
-		var result TrackingResult
-		if jsonErr := json.Unmarshal([]byte(cached), &result); jsonErr == nil {
-			result.Stale = false
-			return &result, nil
+		finalResult = TrackingResult{
+			TrainNumber:    schedule.Train.TrainNumber,
+			CurrentStation: externalData.CurrentStation,
+			NextStation:    externalData.NextStation,
+			DelayMinutes:   externalData.DelayMinutes,
+			Latitude:       externalData.Lat,
+			Longitude:      externalData.Lon,
+			LastUpdated:    time.Now(),
+			Source:         "API",
+		}
+	} else {
+		// 3. Fallback to Local Simulation if API fails
+		finalResult = TrackingResult{
+			TrainNumber:    schedule.Train.TrainNumber,
+			CurrentStation: "In Transit",
+			DelayMinutes:   schedule.DelayMinutes,
+			LastUpdated:    time.Now(),
+			Source:         "Local_Sim",
 		}
 	}
 
-	result := simulateTracking(schedule.Train.TrainName, trainNumber, schedule.Status, schedule.DelayMinutes)
+	// Store in Cache
+	data, _ := json.Marshal(finalResult)
+	rdb.Set(ctx, cacheKey, data, trackingCacheTTL)
 
-	// Store in Redis
-	if data, jsonErr := json.Marshal(result); jsonErr == nil {
-		_ = rdb.Set(ctx, cacheKey, data, trackingCacheTTL).Err()
-	}
-
-	return result, nil
-}
-
-func simulateTracking(trainName, trainNumber, status string, delayMinutes int) *TrackingResult {
-	log.Printf("[tracking] simulated response for train %s", trainNumber)
-	return &TrackingResult{
-		TrainNumber:    trainNumber,
-		TrainName:      trainName,
-		CurrentStation: "En Route",
-		NextStation:    "Next Stop",
-		DelayMinutes:   delayMinutes,
-		Latitude:       0,
-		Longitude:      0,
-		Status:         status,
-		Stale:          false,
-		LastUpdated:    time.Now(),
-	}
+	return &finalResult, nil
 }
