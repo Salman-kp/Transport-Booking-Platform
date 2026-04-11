@@ -14,7 +14,6 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml   
 
-
   api-gateway: 
     build:
       context: ./api-gateway
@@ -30,9 +29,9 @@ services:
       - "TRAIN_SERVICE_URL=http://train-service:8082"
       - "BUS_SERVICE_URL=http://bus-service:8083"
       - "FLIGHT_SERVICE_URL=http://flight-service:8084"
+      - "FRONTEND_URL=${FRONTEND_URL}"
     depends_on:
       - redis
-
 
   auth-service:
     build: 
@@ -46,7 +45,6 @@ services:
       DB_URL: ${AUTH_DB}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-    
     depends_on:
       - redis
 
@@ -59,10 +57,11 @@ services:
     env_file:
       - ./flight-service/.env
     environment:
-      DB_URL: ${flight_DB}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379              
-
+      DB_URL: ${FLIGHT_DB}
+      RUN_SEED_ON_BOOT: "true"
+      # REDIS_HOST: redis
+      # REDIS_PORT: 6379   
+      REDIS_URL: redis:6379           
     depends_on:
      - redis  
 
@@ -97,7 +96,6 @@ services:
 
     depends_on:
      - redis  
-
 
        
 
