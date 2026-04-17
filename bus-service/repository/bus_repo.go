@@ -30,27 +30,35 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 
 	query := r.db.Preload("Bus").Preload("Bus.Operator").Preload("Bus.BusType").
 		Preload("Bus.OriginStop").Preload("Bus.DestinationStop").
+		Distinct("bus_instances.*").
 		Joins("JOIN buses ON buses.id = bus_instances.bus_id").
-		Joins("JOIN bus_stops AS origin_stop ON origin_stop.id = buses.origin_stop_id").
-		Joins("JOIN bus_stops AS dest_stop ON dest_stop.id = buses.destination_stop_id").
 		Joins("JOIN operators ON operators.id = buses.operator_id").
+		// Join boarding side: user's origin stop
+		Joins("JOIN boarding_points bp ON bp.bus_instance_id = bus_instances.id").
+		Joins("JOIN bus_stops bs_from ON bs_from.id = bp.bus_stop_id").
+		// Join dropping side: user's destination stop
+		Joins("JOIN dropping_points dp ON dp.bus_instance_id = bus_instances.id").
+		Joins("JOIN bus_stops bs_to ON bs_to.id = dp.bus_stop_id").
+		// Enforce forward direction: boarding must come before dropping in route sequence
+		Where("bp.sequence_order < dp.sequence_order").
 		Where("DATE(bus_instances.travel_date) = ?", filter.TravelDate)
 
 	if filter.Origin != "" {
-		query = query.Where("(origin_stop.name ILIKE ? OR origin_stop.city ILIKE ?)", "%"+filter.Origin+"%", "%"+filter.Origin+"%")
+		query = query.Where(
+			"(bs_from.name ILIKE ? OR bs_from.city ILIKE ?)",
+			"%"+filter.Origin+"%", "%"+filter.Origin+"%",
+		)
 	}
 	if filter.Destination != "" {
-		query = query.Where("(dest_stop.name ILIKE ? OR dest_stop.city ILIKE ?)", "%"+filter.Destination+"%", "%"+filter.Destination+"%")
+		query = query.Where(
+			"(bs_to.name ILIKE ? OR bs_to.city ILIKE ?)",
+			"%"+filter.Destination+"%", "%"+filter.Destination+"%",
+		)
 	}
 
-	// Dynamic capacity checks based on SeatType request
-	seatTypeLower := ""
-	if filter.SeatType != "" {
-		seatTypeLower = filter.SeatType
-	}
-
-	if seatTypeLower != "" && filter.Passengers > 0 {
-		switch seatTypeLower {
+	// Seat capacity filters
+	if filter.SeatType != "" && filter.Passengers > 0 {
+		switch filter.SeatType {
 		case "seater":
 			query = query.Where("bus_instances.available_seater >= ?", filter.Passengers)
 		case "semi_sleeper", "semi-sleeper":
@@ -59,7 +67,10 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 			query = query.Where("bus_instances.available_sleeper >= ?", filter.Passengers)
 		}
 	} else if filter.Passengers > 0 {
-		query = query.Where("(bus_instances.available_seater >= ? OR bus_instances.available_semi_sleeper >= ? OR bus_instances.available_sleeper >= ?)", filter.Passengers, filter.Passengers, filter.Passengers)
+		query = query.Where(
+			"(bus_instances.available_seater >= ? OR bus_instances.available_semi_sleeper >= ? OR bus_instances.available_sleeper >= ?)",
+			filter.Passengers, filter.Passengers, filter.Passengers,
+		)
 	}
 
 	// Operator Filter
@@ -110,7 +121,7 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 	case "duration":
 		query = query.Order("buses.duration_minutes ASC")
 	case "departure_time":
-		query = query.Order("buses.departure_time ASC")
+		query = query.Order("bus_instances.departure_at ASC")
 	case "rating":
 		query = query.Order("operators.rating DESC")
 	}

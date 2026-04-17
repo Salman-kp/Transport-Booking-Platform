@@ -37,6 +37,7 @@ type Booking struct {
 	OperatorInventory *OperatorInventory `gorm:"foreignKey:OperatorInventoryID" json:"operator_inventory"`
 	BoardingPoint     BoardingPoint      `gorm:"foreignKey:BoardingPointID" json:"boarding_point"`
 	DroppingPoint     DroppingPoint      `gorm:"foreignKey:DroppingPointID" json:"dropping_point"`
+	Passengers        []Passenger        `gorm:"foreignKey:BookingID" json:"passengers"`
 }
 
 type Passenger struct {

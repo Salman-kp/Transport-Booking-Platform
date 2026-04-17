@@ -3,6 +3,7 @@
     "bus_number": "KA-01-F-1234",
     "travel_date": "2026-04-15",
     "stop_name": "Secunderabad Station",
+    "city": "Hyderabad",
     "drop_time": "2026-04-16T05:30:00Z",
     "sequence_order": 3,
     "landmark": "Secunderabad Station Exit Gate"
@@ -11,6 +12,7 @@
     "bus_number": "KA-01-F-1234",
     "travel_date": "2026-04-15",
     "stop_name": "MG Bus Station",
+    "city": "Hyderabad",
     "drop_time": "2026-04-16T06:00:00Z",
     "sequence_order": 4,
     "landmark": "MG Bus Station Platform 5"
@@ -19,6 +21,7 @@
     "bus_number": "MH-12-PQ-9090",
     "travel_date": "2026-04-15",
     "stop_name": "Chennai Central",
+    "city": "Chennai",
     "drop_time": "2026-04-16T04:30:00Z",
     "sequence_order": 3,
     "landmark": "Chennai Central Bus Bay"
@@ -27,6 +30,7 @@
     "bus_number": "MH-12-PQ-9090",
     "travel_date": "2026-04-15",
     "stop_name": "Koyambedu Bus Terminus",
+    "city": "Chennai",
     "drop_time": "2026-04-16T05:00:00Z",
     "sequence_order": 4,
     "landmark": "Koyambedu Omni Bus Stand, Bay 12"
@@ -35,6 +39,7 @@
     "bus_number": "TS-09-RT-4567",
     "travel_date": "2026-04-15",
     "stop_name": "Sreeram Nagar",
+    "city": "Bangalore",
     "drop_time": "2026-04-15T19:30:00Z",
     "sequence_order": 3,
     "landmark": "Sreeram Nagar Signal Stop"
@@ -43,6 +48,7 @@
     "bus_number": "TS-09-RT-4567",
     "travel_date": "2026-04-15",
     "stop_name": "Majestic Bus Stop",
+    "city": "Bangalore",
     "drop_time": "2026-04-15T20:00:00Z",
     "sequence_order": 4,
     "landmark": "KSRTC Main Depot Arrival Bay"
@@ -51,6 +57,7 @@
     "bus_number": "KA-01-F-1234",
     "travel_date": "2026-04-16",
     "stop_name": "Secunderabad Station",
+    "city": "Hyderabad",
     "drop_time": "2026-04-17T05:30:00Z",
     "sequence_order": 3,
     "landmark": "Secunderabad Station Exit Gate"
@@ -59,6 +66,7 @@
     "bus_number": "KA-01-F-1234",
     "travel_date": "2026-04-16",
     "stop_name": "MG Bus Station",
+    "city": "Hyderabad",
     "drop_time": "2026-04-17T06:00:00Z",
     "sequence_order": 4,
     "landmark": "MG Bus Station Platform 5"

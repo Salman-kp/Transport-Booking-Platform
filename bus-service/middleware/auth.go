@@ -1,17 +1,38 @@
 package middleware
 
-import "github.com/gofiber/fiber/v3"
+import (
+	"log"
 
-func ExtractUser() fiber.Handler {
-	return func(c fiber.Ctx) error {
-		userID := c.Get("X-User-ID")
-		if userID == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "unauthorized",
-			})
-		}
-		c.Locals("userID", userID)
-		c.Locals("userRole", c.Get("X-User-Role"))
-		return c.Next()
+	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+)
+
+func AuthMiddleware(c fiber.Ctx) error {
+	userIDStr := c.Get("X-User-Id")
+	roleStr := c.Get("X-User-Role")
+
+	if userIDStr == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing X-User-ID header",
+		})
 	}
+
+	parsedUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		log.Println("Invalid UUID header format:", err)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid X-User-ID format",
+		})
+	}
+
+	if roleStr == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing X-User-Role header",
+		})
+	}
+
+	c.Locals("userID", parsedUUID)
+	c.Locals("role", roleStr)
+
+	return c.Next()
 }

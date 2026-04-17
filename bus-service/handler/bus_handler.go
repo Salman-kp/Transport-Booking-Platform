@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/Salman-kp/tripneo/bus-service/dto"
 	"github.com/Salman-kp/tripneo/bus-service/model"
@@ -17,6 +20,14 @@ type BusHandler struct {
 
 func NewBusHandler(service service.BusService) *BusHandler {
 	return &BusHandler{service: service}
+}
+
+// helper: validate UUID
+func validateUUID(c fiber.Ctx, id string) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return utils.Fail(c, fiber.StatusBadRequest, "Invalid instance ID")
+	}
+	return nil
 }
 
 // 1. GET /api/buses/search
@@ -54,16 +65,20 @@ func (h *BusHandler) SearchBuses(c fiber.Ctx) error {
 		instances = []model.BusInstance{}
 	}
 
-	return utils.Success(c, fiber.StatusOK, "Buses retrieved effectively", instances)
+	return utils.Success(c, fiber.StatusOK, "Buses retrieved successfully", instances)
 }
 
 // 2. GET /api/v1/buses/:instanceId
 func (h *BusHandler) GetBus(c fiber.Ctx) error {
 	id := c.Params("instanceId")
 
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
+
 	instance, err := h.service.GetBusInstance(id)
 	if err != nil {
-		if err.Error() == "record not found" {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.Fail(c, fiber.StatusNotFound, "Bus instance not found")
 		}
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
@@ -75,6 +90,10 @@ func (h *BusHandler) GetBus(c fiber.Ctx) error {
 // 3. GET /api/buses/:instanceId/fares
 func (h *BusHandler) GetBusFares(c fiber.Ctx) error {
 	id := c.Params("instanceId")
+
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
 
 	fares, err := h.service.GetFares(id)
 	if err != nil {
@@ -91,6 +110,10 @@ func (h *BusHandler) GetBusFares(c fiber.Ctx) error {
 func (h *BusHandler) GetBusSeats(c fiber.Ctx) error {
 	id := c.Params("instanceId")
 
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
+
 	seats, err := h.service.GetSeats(id)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
@@ -106,6 +129,10 @@ func (h *BusHandler) GetBusSeats(c fiber.Ctx) error {
 func (h *BusHandler) GetBusAmenities(c fiber.Ctx) error {
 	id := c.Params("instanceId")
 
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
+
 	amenities, err := h.service.GetAmenities(id)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
@@ -117,6 +144,10 @@ func (h *BusHandler) GetBusAmenities(c fiber.Ctx) error {
 // 6. GET /api/buses/:instanceId/boarding-points
 func (h *BusHandler) GetBoardingPoints(c fiber.Ctx) error {
 	id := c.Params("instanceId")
+
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
 
 	points, err := h.service.GetBoardingPoints(id)
 	if err != nil {
@@ -130,6 +161,10 @@ func (h *BusHandler) GetBoardingPoints(c fiber.Ctx) error {
 func (h *BusHandler) GetDroppingPoints(c fiber.Ctx) error {
 	id := c.Params("instanceId")
 
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
+
 	points, err := h.service.GetDroppingPoints(id)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
@@ -141,6 +176,10 @@ func (h *BusHandler) GetDroppingPoints(c fiber.Ctx) error {
 // 8. GET /api/buses/:instanceId/route
 func (h *BusHandler) GetRoute(c fiber.Ctx) error {
 	id := c.Params("instanceId")
+
+	if err := validateUUID(c, id); err != nil {
+		return err
+	}
 
 	route, err := h.service.GetRoute(id)
 	if err != nil {

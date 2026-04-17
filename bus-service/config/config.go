@@ -16,10 +16,8 @@ type Config struct {
 	RUN_SEED_ON_BOOT                string
 	REDIS_HOST                      string
 	REDIS_PORT                      string
-	REDIS_PASSWORD                  string
-	KAFKA_BROKERS                   string
-	KAFKA_GROUP_ID                  string
-	AUTH_SERVICE_ADDR               string
+	REDPANDA_BROKERS                string
+	REDPANDA_GROUP_ID               string
 	PAYMENT_SERVICE_ADDR            string
 	QR_SERVICE_ADDR                 string
 	HMAC_SECRET                     string
@@ -31,27 +29,12 @@ type Config struct {
 }
 
 func LoadEnv() {
-	// Detect Docker environment
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		// Running inside Docker → skip loading .env file
-		return
-	}
-
-	// Local environment → load .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ .env file not found, using system env")
 	} else {
 		fmt.Println("✅ .env loaded successfully")
 	}
 }
-
-// func LoadEnv() {
-// 	if err := godotenv.Load(); err != nil {
-// 		log.Println("⚠️ .env file not found, using system env")
-// 	} else {
-// 		fmt.Println("✅ .env loaded successfully")
-// 	}
-// }
 
 func getEnv(key, fallback string) string {
 	val := os.Getenv(key)
@@ -72,12 +55,10 @@ func LoadConfig() *Config {
 		RUN_SEED_ON_BOOT:                getEnv("RUN_SEED_ON_BOOT", "false"),
 		REDIS_HOST:                      getEnv("REDIS_HOST", "localhost"),
 		REDIS_PORT:                      getEnv("REDIS_PORT", "6379"),
-		REDIS_PASSWORD:                  getEnv("REDIS_PASSWORD", ""),
-		KAFKA_BROKERS:                   getEnv("KAFKA_BROKERS", "localhost:9092"),
-		KAFKA_GROUP_ID:                  getEnv("KAFKA_GROUP_ID", "bus-service"),
-		AUTH_SERVICE_ADDR:               getEnv("AUTH_SERVICE_ADDR", "localhost:9091"),
-		PAYMENT_SERVICE_ADDR:            getEnv("PAYMENT_SERVICE_ADDR", "localhost:9093"),
-		QR_SERVICE_ADDR:                 getEnv("QR_SERVICE_ADDR", "localhost:9094"),
+		REDPANDA_BROKERS:                getEnv("REDPANDA_BROKERS", "localhost:19092"),
+		REDPANDA_GROUP_ID:               getEnv("REDPANDA_GROUP_ID", "bus-service"),
+		PAYMENT_SERVICE_ADDR:            getEnv("PAYMENT_SERVICE_ADDR", "localhost:8085"),
+		QR_SERVICE_ADDR:                 getEnv("QR_SERVICE_ADDR", "localhost:8086"),
 		HMAC_SECRET:                     getEnv("HMAC_SECRET", "supersecret123"),
 		PNR_SALT:                        getEnv("PNR_SALT", "salt123"),
 		BOOKING_EXPIRY_MINUTES:          getEnv("BOOKING_EXPIRY_MINUTES", "15"),
