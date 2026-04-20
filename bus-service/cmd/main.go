@@ -21,7 +21,7 @@ func main() {
 
 	rdb := busredis.Client(cfg.REDIS_HOST, cfg.REDIS_PORT)
 
-	producer := redpanda.NewProducer(cfg.REDPANDA_BROKERS)
+	producer := redpanda.NewProducer(cfg.KAFKA_BROKERS)
 	defer producer.Close()
 
 	if cfg.RUN_SEED_ON_BOOT == "true" {

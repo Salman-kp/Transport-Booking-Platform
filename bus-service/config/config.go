@@ -16,7 +16,7 @@ type Config struct {
 	RUN_SEED_ON_BOOT                string
 	REDIS_HOST                      string
 	REDIS_PORT                      string
-	REDPANDA_BROKERS                string
+	KAFKA_BROKERS                   string
 	REDPANDA_GROUP_ID               string
 	PAYMENT_SERVICE_ADDR            string
 	QR_SERVICE_ADDR                 string
@@ -55,7 +55,7 @@ func LoadConfig() *Config {
 		RUN_SEED_ON_BOOT:                getEnv("RUN_SEED_ON_BOOT", "false"),
 		REDIS_HOST:                      getEnv("REDIS_HOST", "localhost"),
 		REDIS_PORT:                      getEnv("REDIS_PORT", "6379"),
-		REDPANDA_BROKERS:                getEnv("REDPANDA_BROKERS", "localhost:19092"),
+		KAFKA_BROKERS:                   getEnv("KAFKA_BROKERS", "localhost:19092"),
 		REDPANDA_GROUP_ID:               getEnv("REDPANDA_GROUP_ID", "bus-service"),
 		PAYMENT_SERVICE_ADDR:            getEnv("PAYMENT_SERVICE_ADDR", "localhost:8085"),
 		QR_SERVICE_ADDR:                 getEnv("QR_SERVICE_ADDR", "localhost:8086"),

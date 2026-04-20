@@ -17,8 +17,8 @@ import (
 
 // StartConsumer listens to payment events synchronously.
 func StartConsumer(cfg *config.Config, db *gorm.DB, rdb *goredis.Client, producer *Producer, repo repository.BookingRepository) {
-	if cfg.REDPANDA_BROKERS == "" {
-		log.Println("[bus-redpanda] No broker configured — Redpanda consumer disabled")
+	if cfg.KAFKA_BROKERS == "" {
+		log.Println("[bus-redpanda] No broker configured — Kafka consumer disabled")
 		return
 	}
 
@@ -31,7 +31,7 @@ func StartConsumer(cfg *config.Config, db *gorm.DB, rdb *goredis.Client, produce
 
 func consumeTopic(cfg *config.Config, db *gorm.DB, rdb *goredis.Client, producer *Producer, repo repository.BookingRepository, topic string) {
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        []string{cfg.REDPANDA_BROKERS},
+		Brokers:        []string{cfg.KAFKA_BROKERS},
 		GroupID:        cfg.REDPANDA_GROUP_ID,
 		Topic:          topic,
 		MinBytes:       1,

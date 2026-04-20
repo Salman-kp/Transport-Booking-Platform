@@ -23,7 +23,7 @@ type Config struct {
 	PAYMENT_SERVICE_GRPC string
 	QR_SERVICE_GRPC      string
 
-	KAFKA_BROKER   string
+	KAFKA_BROKERS  string
 	KAFKA_GROUP_ID string
 
 	RAILWAY_API_KEY      string
@@ -53,7 +53,7 @@ func LoadConfig() *Config {
 		PAYMENT_SERVICE_GRPC: getEnv("PAYMENT_SERVICE_GRPC", "localhost:50051"),
 		QR_SERVICE_GRPC:      getEnv("QR_SERVICE_GRPC", "localhost:50053"),
 
-		KAFKA_BROKER:   getEnv("KAFKA_BROKER", ""),
+		KAFKA_BROKERS:  getEnv("KAFKA_BROKERS", ""),
 		KAFKA_GROUP_ID: getEnv("KAFKA_GROUP_ID", "train-service"),
 
 		RAILWAY_API_KEY:      os.Getenv("RAILWAY_API_KEY"),

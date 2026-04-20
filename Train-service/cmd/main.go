@@ -43,7 +43,7 @@ func main() {
 	c.Start()
 
 	// 7. Initialize Kafka producer (nil if no broker configured — safe)
-	producer := kafka.NewProducer(cfg.KAFKA_BROKER)
+	producer := kafka.NewProducer(cfg.KAFKA_BROKERS)
 	defer producer.Close()
 
 	// 8. Start Kafka consumer (no-op if broker not configured)
