@@ -4,6 +4,6 @@
 !.env.example
 !**/.env.example
 
-# Local binaries/artifacts
+
 tmp_bin
 **/tmp_bin
