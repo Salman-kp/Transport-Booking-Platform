@@ -15,6 +15,7 @@ func RegisterFlightRoutes(app *fiber.App, cfg *config.Config, rdb *redis.Client)
 
 	// public flight routes
 	api.Get("/search", proxy.To(cfg.FLIGHT_SERVICE_URL))
+	api.Get("/status/:pnr", proxy.To(cfg.FLIGHT_SERVICE_URL))
 	api.Get("/:instanceId", proxy.To(cfg.FLIGHT_SERVICE_URL))
 	api.Get("/:instanceId/fares", proxy.To(cfg.FLIGHT_SERVICE_URL))
 	api.Get("/:instanceId/seats", proxy.To(cfg.FLIGHT_SERVICE_URL))
