@@ -12,6 +12,7 @@ services:
     command:
       - redpanda
       - start
+      - --mode dev-container
       - --smp 1
       - --memory 1G
       - --reserve-memory 0M
@@ -78,8 +79,11 @@ services:
       # REDIS_HOST: redis
       # REDIS_PORT: 6379   
       REDIS_URL: redis:6379           
+      KAFKA_BROKERS: redpanda:9092
+      PAYMENT_SERVICE_GRPC_URL: payment-service:50051
     depends_on:
-     - redis  
+      - redis  
+      - redpanda
 
   train-service:
     build:
@@ -93,9 +97,11 @@ services:
       DB_URL: ${TRAIN_DB}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      KAFKA_BROKERS: redpanda:9092
 
     depends_on:
-     - redis  
+      - redis  
+      - redpanda
 
   bus-service:
     build:
@@ -109,11 +115,26 @@ services:
       DB_URL: ${BUS_DB}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDPANDA_BROKERS: redpanda:9092
+      KAFKA_BROKERS: redpanda:9092
 
     depends_on:
-     - redis
-     - redpanda
+      - redis
+      - redpanda
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+      - "50051:50051"
+    env_file:
+      - ./payment-service/.env
+    environment:
+      - "KAFKA_BROKERS=redpanda:9092"
+    depends_on:
+      - redis
+      - redpanda
 
        
 
