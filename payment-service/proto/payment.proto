@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "github.com/junaid9001/tripneo/payment-service/proto";
+
+service PaymentService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+}
+
+message CreateOrderRequest {
+  string booking_id = 1;
+  double amount = 2;
+  string currency = 3;
+  string domain = 4; // flight, bus, train
+  string user_id = 5;
+}
+
+message CreateOrderResponse {
+  string stripe_client_secret = 1;
+}
