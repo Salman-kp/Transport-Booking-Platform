@@ -5,7 +5,7 @@ services:
     image: redis:latest
     ports:
       - "6379:6379"
-    restart: always  
+    restart: always
 
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
@@ -27,21 +27,21 @@ services:
   prometheus:
     image: prom/prometheus
     ports:
-      - "9090:9090" 
+      - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml   
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
 
-  api-gateway: 
+  api-gateway:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
     env_file:
-      - ./api-gateway/.env  
+      - ./api-gateway/.env
     environment:
-      - "REDIS_HOST=redis"  
-      - "REDIS_PORT=6379"  
+      - "REDIS_HOST=redis"
+      - "REDIS_PORT=6379"
       - "AUTH_SERVICE_URL=http://auth-service:8081"
       - "TRAIN_SERVICE_URL=http://train-service:8082"
       - "BUS_SERVICE_URL=http://bus-service:8083"
@@ -51,13 +51,13 @@ services:
       - redis
 
   auth-service:
-    build: 
+    build:
       context: ./auth-service
       dockerfile: Dockerfile
     expose:
       - 8081
     env_file:
-     - ./auth-service/.env
+      - ./auth-service/.env
     environment:
       DB_URL: ${AUTH_DB}
       REDIS_HOST: redis
@@ -68,7 +68,7 @@ services:
   flight-service:
     build:
       context: ./flight-service
-      dockerfile: Dockerfile    
+      dockerfile: Dockerfile
     expose:
       - 8084
     env_file:
@@ -78,11 +78,11 @@ services:
       RUN_SEED_ON_BOOT: "true"
       # REDIS_HOST: redis
       # REDIS_PORT: 6379   
-      REDIS_URL: redis:6379           
+      REDIS_URL: redis:6379
       KAFKA_BROKERS: redpanda:9092
       PAYMENT_SERVICE_GRPC_URL: payment-service:50051
     depends_on:
-      - redis  
+      - redis
       - redpanda
 
   train-service:
@@ -100,7 +100,7 @@ services:
       KAFKA_BROKERS: redpanda:9092
 
     depends_on:
-      - redis  
+      - redis
       - redpanda
 
   bus-service:
@@ -113,9 +113,12 @@ services:
       - ./bus-service/.env
     environment:
       DB_URL: ${BUS_DB}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      RUN_SEED_ON_BOOT: "true"
+      # REDIS_HOST: redis
+      # REDIS_PORT: 6379   
+      REDIS_URL: redis:6379
       KAFKA_BROKERS: redpanda:9092
+      PAYMENT_SERVICE_ADDR: payment-service:50051
 
     depends_on:
       - redis
@@ -135,7 +138,3 @@ services:
     depends_on:
       - redis
       - redpanda
-
-       
-
-    

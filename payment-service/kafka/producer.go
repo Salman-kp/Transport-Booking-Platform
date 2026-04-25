@@ -54,6 +54,11 @@ func (p *Producer) PublishFlightPaymentCompleted(ctx context.Context, evt Paymen
 	p.Publish(ctx, "flight-payment-topic", evt.BookingID, data)
 }
 
+func (p *Producer) PublishBusPaymentCompleted(ctx context.Context, evt PaymentCompletedEvent) {
+	data, _ := json.Marshal(evt)
+	p.Publish(ctx, "bus-payment-topic", evt.BookingID, data)
+}
+
 func (p *Producer) Close() {
 	if p != nil && p.writer != nil {
 		p.writer.Close()

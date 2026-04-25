@@ -41,7 +41,11 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 		Joins("JOIN bus_stops bs_to ON bs_to.id = dp.bus_stop_id").
 		// Enforce forward direction: boarding must come before dropping in route sequence
 		Where("bp.sequence_order < dp.sequence_order").
-		Where("DATE(bus_instances.travel_date) = ?", filter.TravelDate)
+		Where("DATE(bus_instances.travel_date) = ?", filter.TravelDate).
+		// Ensure the bus has at least one seat marked as available in the seats table
+		Where("EXISTS (SELECT 1 FROM seats s WHERE s.bus_instance_id = bus_instances.id AND s.is_available = true)").
+		// Double check via BusInstance availability counts
+		Where("(bus_instances.available_seater > 0 OR bus_instances.available_semi_sleeper > 0 OR bus_instances.available_sleeper > 0)")
 
 	if filter.Origin != "" {
 		query = query.Where(

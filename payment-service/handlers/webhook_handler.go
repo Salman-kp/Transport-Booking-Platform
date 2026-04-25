@@ -57,11 +57,13 @@ func (h *WebhookHandler) HandleStripeWebhook(c fiber.Ctx) error {
 			UserID:    userID,
 			Status:    "SUCCESS",
 		}
-
+		// add other domains here as needed
 		if domain == "flight" {
 			h.kafkaProducer.PublishFlightPaymentCompleted(c.Context(), kafkaEvent)
 		}
-		// add other domains here as needed
+		if domain == "bus" {
+			h.kafkaProducer.PublishBusPaymentCompleted(c.Context(), kafkaEvent)
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "processed"})

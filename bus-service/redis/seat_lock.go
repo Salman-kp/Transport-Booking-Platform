@@ -21,10 +21,19 @@ func seatLockKey(busInstanceID, seatID string) string {
 // LockSeat atomically claims a single seat. Returns true if acquired.
 func LockSeat(ctx context.Context, rdb *redis.Client, busInstanceID, seatID, userID string, ttl time.Duration) (bool, error) {
 	key := seatLockKey(busInstanceID, seatID)
+	// shadow key for notification triggers (shadow:seat_lock:<userID>:<busInstanceID>:<seatID>)
+	shadowKey := fmt.Sprintf("shadow:seat_lock:%s:%s:%s", userID, busInstanceID, seatID)
+
 	acquired, err := rdb.SetNX(ctx, key, userID, ttl).Result()
 	if err != nil {
 		return false, fmt.Errorf("redis SetNX failed for key %s: %w", key, err)
 	}
+
+	if acquired {
+		// Set shadow key with the same TTL
+		rdb.Set(ctx, shadowKey, "1", ttl)
+	}
+
 	return acquired, nil
 }
 

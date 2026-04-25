@@ -12,10 +12,12 @@ import (
 
 	"github.com/Salman-kp/tripneo/bus-service/config"
 	"github.com/Salman-kp/tripneo/bus-service/dto"
+	"github.com/Salman-kp/tripneo/bus-service/kafka"
 	"github.com/Salman-kp/tripneo/bus-service/model"
 	busredis "github.com/Salman-kp/tripneo/bus-service/redis"
-	"github.com/Salman-kp/tripneo/bus-service/redpanda"
 	"github.com/Salman-kp/tripneo/bus-service/repository"
+	"github.com/Salman-kp/tripneo/bus-service/rpc"
+	"github.com/Salman-kp/tripneo/bus-service/ws"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -29,21 +31,26 @@ type BookingService interface {
 	ConfirmBooking(id string, userID string) error
 	CancelBooking(id string, userID string, req *dto.CancelBookingRequest) (*dto.CancelBookingResponse, error)
 	GetBookingTicket(id string, userID string) (*dto.TicketResponse, error)
+	InitiatePayment(id string, userID string) (string, error)
+	ProcessPaymentEvent(evt kafka.PaymentCompletedEvent)
 }
 
 type bookingService struct {
-	repo     repository.BookingRepository
-	rdb      *goredis.Client
-	producer *redpanda.Producer
+	repo      repository.BookingRepository
+	rdb       *goredis.Client
+	payClient *rpc.PaymentClient
+	wsManager *ws.Manager
 }
 
 // NewBookingService constructs a BookingService.
-// producer may be nil in local dev (Redpanda disabled).
-func NewBookingService(repo repository.BookingRepository, rdb *goredis.Client, producer *redpanda.Producer) BookingService {
-	return &bookingService{repo: repo, rdb: rdb, producer: producer}
+func NewBookingService(repo repository.BookingRepository, rdb *goredis.Client, payClient *rpc.PaymentClient, wsManager *ws.Manager) BookingService {
+	return &bookingService{
+		repo:      repo,
+		rdb:       rdb,
+		payClient: payClient,
+		wsManager: wsManager,
+	}
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 // generatePNR generates a cryptographically random 6-character uppercase alphanumeric PNR.
 func generatePNR() string {
@@ -277,18 +284,7 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		return nil, errors.New("failed to create booking: " + err.Error())
 	}
 
-	// ── Publish bus.booking.created ───────────────────────────────────────────
-	// The future Payment Service listens here and will reply with payment_url via redpanda.
-	s.producer.PublishBookingCreated(ctx, redpanda.BookingCreatedEvent{
-		BookingID:      booking.ID.String(),
-		PNR:            booking.PNR,
-		UserID:         userID,
-		TotalAmount:    booking.TotalAmount,
-		Currency:       booking.Currency,
-		PassengerCount: len(passengers),
-	})
-
-	return &dto.BookingResponse{
+	resp := &dto.BookingResponse{
 		ID:            booking.ID.String(),
 		PNR:           booking.PNR,
 		Status:        booking.Status,
@@ -301,11 +297,24 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		Currency:      booking.Currency,
 		BookedAt:      booking.BookedAt,
 		ExpiresAt:     booking.ExpiresAt,
-		// PaymentURL: Payment Service will be integrated as a separate service.
-		// It will listen to bus.booking.created and generate the Stripe checkout URL.
-		// For now this is empty — same pattern as the Train Service.
-		PaymentURL: "",
-	}, nil
+		PaymentURL:    "", // default
+	}
+
+	// ── Trigger gRPC call to payment service ──────────────────────────────────
+	if s.payClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		orderID, err := s.payClient.CreateOrder(ctx, booking.ID.String(), booking.TotalAmount, booking.Currency, userID)
+		if err != nil {
+			log.Printf("Payment gRPC Failed: %v", err)
+			// we don't fail the booking, user can retry or wait for auto-expiry
+		} else {
+			resp.PaymentURL = orderID // Stripe client secret
+		}
+	}
+
+	return resp, nil
 }
 
 // ── GetBookingByID ────────────────────────────────────────────────────────────
@@ -340,6 +349,32 @@ func (s *bookingService) GetUserBookings(userID string) ([]dto.BookingResponse, 
 		resp = append(resp, *bookingToDTO(&bookings[i]))
 	}
 	return resp, nil
+}
+
+func (s *bookingService) InitiatePayment(id string, userID string) (string, error) {
+	booking, err := s.repo.FindBookingByID(id, userID)
+	if err != nil {
+		return "", err
+	}
+
+	if booking.Status != "PENDING_PAYMENT" {
+		return "", errors.New("booking is not pending payment")
+	}
+
+	// trigger gRPC call to payment service to get client secret
+	if s.payClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		orderID, err := s.payClient.CreateOrder(ctx, booking.ID.String(), booking.TotalAmount, booking.Currency, userID)
+		if err != nil {
+			log.Printf("Payment gRPC Failed: %v", err)
+			return "", errors.New("failed to initiate payment with stripe gateway")
+		}
+		return orderID, nil
+	}
+
+	return "", errors.New("payment service is currently unavailable")
 }
 
 // ── ConfirmBooking ────────────────────────────────────────────────────────────
@@ -387,7 +422,7 @@ func (s *bookingService) ConfirmBooking(id string, userID string) error {
 		log.Printf("[booking-service] Inventory update failed (non-fatal): %v", err)
 	}
 
-	// 5. Generate e-ticket (stub — QR Service will be called via gRPC in production)
+	// 5. Generate e-ticket
 	ticketNumber := "BUS-" + booking.PNR
 	eTicket := &model.ETicket{
 		BookingID:    booking.ID,
@@ -397,35 +432,7 @@ func (s *bookingService) ConfirmBooking(id string, userID string) error {
 	}
 	_ = s.repo.SaveETicket(eTicket)
 
-	// 6. Publish bus.booking.confirmed
-	s.producer.PublishBookingConfirmed(ctx, redpanda.BookingConfirmedEvent{
-		BookingID:      booking.ID.String(),
-		PNR:            booking.PNR,
-		UserID:         userID,
-		TotalAmount:    booking.TotalAmount,
-		TicketNumber:   ticketNumber,
-		PassengerCount: len(booking.Passengers),
-	})
-
-	// ── Verification: Simulate external payment completion ───────────────────
-	s.producer.PublishPaymentCompleted(ctx, redpanda.PaymentCompletedEvent{
-		BookingID:  booking.ID.String(),
-		PaymentRef: "VERIFIED-" + booking.PNR,
-		Amount:     booking.TotalAmount,
-	})
-
-	// 7. Notify — Notification Service will send email + WhatsApp with QR code
-	s.producer.PublishNotification(ctx, redpanda.NotificationEvent{
-		Type:            "booking_confirmed",
-		RecipientUserID: userID,
-		Template:        "bus_booking_confirmed",
-		Data: map[string]interface{}{
-			"pnr":           booking.PNR,
-			"ticket_number": ticketNumber,
-			"total_amount":  booking.TotalAmount,
-		},
-	})
-
+	log.Println("[KAFKA MOCK] Published event: bus.booking.confirmed for PNR:", booking.PNR)
 	return nil
 }
 
@@ -454,7 +461,11 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 	if !booking.FareType.IsRefundable && booking.Status == "CONFIRMED" {
 		refundPct = 0
 	}
+
 	refundAmount := booking.TotalAmount * (refundPct / 100)
+	if booking.Status == "PENDING_PAYMENT" {
+		refundAmount = 0
+	}
 
 	// ── Release seats ─────────────────────────────────────────────────────────
 	seatIDs := extractSeatIDs(booking.Passengers)
@@ -504,41 +515,22 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 		return nil, err
 	}
 
-	// ── Publish bus.booking.cancelled ─────────────────────────────────────────
-	// Payment Service listens and initiates Stripe refund for CONFIRMED bookings.
-	if booking.Status == "CONFIRMED" {
-		s.producer.PublishBookingCancelled(ctx, redpanda.BookingCancelledEvent{
-			BookingID:    booking.ID.String(),
-			PNR:          booking.PNR,
-			UserID:       userID,
-			RefundAmount: refundAmount,
-			Reason:       reason,
-		})
+	log.Println("[KAFKA MOCK] Published event: bus.booking.cancelled for PNR:", booking.PNR)
 
-		// ── Verification: Simulate external payment refund ───────────────────
-		s.producer.PublishPaymentRefunded(ctx, redpanda.PaymentRefundedEvent{
-			BookingID: booking.ID.String(),
-			Amount:    refundAmount,
-		})
-	} else if booking.Status == "PENDING_PAYMENT" {
-		// ── Verification: Simulate external payment failure ────────────────────
-		s.producer.PublishPaymentFailed(ctx, redpanda.PaymentFailedEvent{
-			BookingID: booking.ID.String(),
-			Reason:    "MANUAL_CANCELLATION",
-		})
+	// notify frontend via websocket
+	if s.wsManager != nil {
+		msg := map[string]interface{}{
+			"event": "BOOKING_CANCELLED",
+			"payload": map[string]interface{}{
+				"booking_id":    booking.ID.String(),
+				"pnr":           booking.PNR,
+				"refund_amount": refundAmount,
+				"status":        "CANCELLED",
+			},
+		}
+		_ = s.wsManager.SendToUser(booking.UserID.String(), msg)
+		log.Printf("[WS SUCCESS] Notified user %s of cancelled booking %s", booking.UserID.String(), booking.ID.String())
 	}
-
-	// ── Notify ────────────────────────────────────────────────────────────────
-	s.producer.PublishNotification(ctx, redpanda.NotificationEvent{
-		Type:            "booking_cancelled",
-		RecipientUserID: userID,
-		Template:        "bus_booking_cancelled",
-		Data: map[string]interface{}{
-			"pnr":           booking.PNR,
-			"refund_amount": refundAmount,
-			"refund_status": "PENDING",
-		},
-	})
 
 	return &dto.CancelBookingResponse{
 		BookingID:    booking.ID.String(),
@@ -563,4 +555,39 @@ func (s *bookingService) GetBookingTicket(id string, userID string) (*dto.Ticket
 		QRCodeURL:    ticket.QRCodeURL,
 		IssuedAt:     ticket.IssuedAt,
 	}, nil
+}
+
+func (s *bookingService) ProcessPaymentEvent(evt kafka.PaymentCompletedEvent) {
+	booking, err := s.repo.FindBookingByID(evt.BookingID, evt.UserID)
+	if err != nil {
+		log.Printf("[KAFKA ERROR] ProcessPaymentEvent: Booking not found %s", evt.BookingID)
+		return
+	}
+
+	if booking.Status != "PENDING_PAYMENT" {
+		log.Printf("[KAFKA INFO] ProcessPaymentEvent: Booking %s already in status %s. Skipping.", evt.BookingID, booking.Status)
+		return
+	}
+
+	// update to CONFIRMED
+	if err := s.ConfirmBooking(evt.BookingID, evt.UserID); err != nil {
+		log.Printf("[KAFKA ERROR] ProcessPaymentEvent: Failed to confirm booking %s: %v", evt.BookingID, err)
+		return
+	}
+
+	// notify frontend via websocket
+	if s.wsManager != nil {
+		msg := map[string]interface{}{
+			"event": "BOOKING_CONFIRMED",
+			"payload": map[string]interface{}{
+				"booking_id": evt.BookingID,
+				"pnr":        booking.PNR,
+				"amount":     evt.Amount,
+				"currency":   evt.Currency,
+				"status":     "CONFIRMED",
+			},
+		}
+		_ = s.wsManager.SendToUser(booking.UserID.String(), msg)
+		log.Printf("[WS SUCCESS] Notified user %s of confirmed booking %s", booking.UserID.String(), evt.BookingID)
+	}
 }

@@ -14,13 +14,11 @@ type Config struct {
 	ENV                             string
 	DB_URL                          string
 	RUN_SEED_ON_BOOT                string
-	REDIS_HOST                      string
-	REDIS_PORT                      string
+	REDIS_URL                       string
 	KAFKA_BROKERS                   string
 	REDPANDA_GROUP_ID               string
 	PAYMENT_SERVICE_ADDR            string
 	QR_SERVICE_ADDR                 string
-	HMAC_SECRET                     string
 	PNR_SALT                        string
 	BOOKING_EXPIRY_MINUTES          string
 	SEAT_LOCK_MINUTES               string
@@ -53,13 +51,11 @@ func LoadConfig() *Config {
 		ENV:                             getEnv("ENV", "development"),
 		DB_URL:                          getEnv("DB_URL", "host=localhost port=5432 user=postgres dbname=bus_service sslmode=disable"),
 		RUN_SEED_ON_BOOT:                getEnv("RUN_SEED_ON_BOOT", "false"),
-		REDIS_HOST:                      getEnv("REDIS_HOST", "localhost"),
-		REDIS_PORT:                      getEnv("REDIS_PORT", "6379"),
+		REDIS_URL:                       getEnv("REDIS_URL", "localhost:6379"),
 		KAFKA_BROKERS:                   getEnv("KAFKA_BROKERS", "localhost:19092"),
 		REDPANDA_GROUP_ID:               getEnv("REDPANDA_GROUP_ID", "bus-service"),
 		PAYMENT_SERVICE_ADDR:            getEnv("PAYMENT_SERVICE_ADDR", "localhost:8085"),
 		QR_SERVICE_ADDR:                 getEnv("QR_SERVICE_ADDR", "localhost:8086"),
-		HMAC_SECRET:                     getEnv("HMAC_SECRET", "supersecret123"),
 		PNR_SALT:                        getEnv("PNR_SALT", "salt123"),
 		BOOKING_EXPIRY_MINUTES:          getEnv("BOOKING_EXPIRY_MINUTES", "15"),
 		SEAT_LOCK_MINUTES:               getEnv("SEAT_LOCK_MINUTES", "10"),

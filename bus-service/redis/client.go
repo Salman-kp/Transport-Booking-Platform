@@ -2,29 +2,28 @@ package redis
 
 import (
 	"context"
-	"fmt"
 	"log"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/Salman-kp/tripneo/bus-service/config"
+	goredis "github.com/redis/go-redis/v9"
 )
 
-// Client creates, verifies, and returns a connected Redis client.
-func Client(redisHost, redisPort string) *redis.Client {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", redisHost, redisPort),
+var Client *goredis.Client
+
+func ConnectRedis(cfg *config.Config) {
+	addr := cfg.REDIS_URL
+	if addr == "" {
+		addr = "localhost:6379"
+	}
+
+	Client = goredis.NewClient(&goredis.Options{
+		Addr: addr,
 	})
 
-	err := rdb.Set(context.Background(), "bus:health", "ok", 0).Err()
-	if err != nil {
-		log.Printf("❌ redis connection failed (bus-service): %v", err)
+	// Test the connection
+	if err := Client.Ping(context.Background()).Err(); err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	_, err = rdb.Get(context.Background(), "bus:health").Result()
-	if err != nil {
-		log.Printf("❌ redis get check failed (bus-service): %v", err)
-	} else {
-		log.Println("✅ redis connection succeeded (bus-service)")
-	}
-
-	return rdb
+	log.Println("Successfully connected to Redis")
 }

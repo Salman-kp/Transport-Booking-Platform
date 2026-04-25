@@ -4,9 +4,11 @@
     "manufacturer": "Volvo",
     "ac": true,
     "seat_layout": {
-      "seater": { "rows": 0 },
-      "semi_sleeper": { "rows": 0 },
-      "sleeper": { "lower_berths": 14, "upper_berths": 14 }
+      "sleeper": {
+        "rows": 4,
+        "left_columns": 1,
+        "right_columns": 1
+      }
     },
     "amenities": ["WiFi", "USB Charging", "Blanket", "Reading Light", "Emergency Exit", "Water Bottle", "Live Tracking"]
   },
@@ -15,9 +17,11 @@
     "manufacturer": "Scania",
     "ac": true,
     "seat_layout": {
-      "seater": { "rows": 0 },
-      "semi_sleeper": { "rows": 11 },
-      "sleeper": { "lower_berths": 0, "upper_berths": 0 }
+      "semi_sleeper": {
+        "rows": 8,
+        "left_columns": 2,
+        "right_columns": 2
+      }
     },
     "amenities": ["WiFi", "USB Charging", "Reading Light", "Emergency Exit", "Reclining Seats"]
   },
@@ -26,9 +30,11 @@
     "manufacturer": "Ashok Leyland",
     "ac": false,
     "seat_layout": {
-      "seater": { "rows": 12 },
-      "semi_sleeper": { "rows": 0 },
-      "sleeper": { "lower_berths": 0, "upper_berths": 0 }
+      "seater": {
+        "rows": 8,
+        "left_columns": 2,
+        "right_columns": 3
+      }
     },
     "amenities": ["Emergency Exit"]
   },
@@ -37,9 +43,11 @@
     "manufacturer": "Mercedes-Benz",
     "ac": true,
     "seat_layout": {
-      "seater": { "rows": 0 },
-      "semi_sleeper": { "rows": 0 },
-      "sleeper": { "lower_berths": 12, "upper_berths": 12 }
+      "sleeper": {
+        "rows": 4,
+        "left_columns": 1,
+        "right_columns": 1
+      }
     },
     "amenities": ["WiFi", "USB Charging", "Blanket", "Reading Light", "Emergency Exit", "Water Bottle", "AC Vent Control"]
   }
