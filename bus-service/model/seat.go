@@ -30,6 +30,7 @@ type Seat struct {
 	Position      string    `gorm:"type:varchar(10);not null" json:"position"`
 	ExtraCharge   float64   `gorm:"type:decimal(10,2);default:0" json:"extra_charge"`
 	IsAvailable   bool      `gorm:"default:true" json:"is_available"`
+	Category      string    `gorm:"type:varchar(20);not null;default:'GENERAL'" json:"category"`
 
 	BusInstance *BusInstance `gorm:"foreignKey:BusInstanceID" json:"bus_instance,omitempty"`
 }

@@ -50,5 +50,31 @@
       }
     },
     "amenities": ["WiFi", "USB Charging", "Blanket", "Reading Light", "Emergency Exit", "Water Bottle", "AC Vent Control"]
+  },
+  {
+    "name": "Tata AC Seater",
+    "manufacturer": "Tata Motors",
+    "ac": true,
+    "seat_layout": {
+      "seater": {
+        "rows": 8,
+        "left_columns": 2,
+        "right_columns": 3
+      }
+    },
+    "amenities": ["AC", "Reading Light", "USB Charging"]
+  },
+  {
+    "name": "BharatBenz AC Semi-Sleeper",
+    "manufacturer": "BharatBenz",
+    "ac": true,
+    "seat_layout": {
+      "semi_sleeper": {
+        "rows": 8,
+        "left_columns": 2,
+        "right_columns": 2
+      }
+    },
+    "amenities": ["WiFi", "Reclining Seats", "Reading Light"]
   }
 ]

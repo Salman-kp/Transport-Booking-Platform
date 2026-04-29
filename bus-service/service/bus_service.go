@@ -78,6 +78,7 @@ func (s *busService) GetSeats(id string) ([]dto.SeatResponse, error) {
 			Position:    seat.Position,
 			ExtraCharge: seat.ExtraCharge,
 			IsAvailable: seat.IsAvailable,
+			Category:    seat.Category,
 		})
 	}
 

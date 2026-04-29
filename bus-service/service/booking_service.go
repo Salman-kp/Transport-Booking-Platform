@@ -185,31 +185,53 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 	isPrimarySet := false
 
 	for i, pReq := range req.Passengers {
-		seatUUID, err := uuid.Parse(pReq.SeatID)
-		if err != nil {
-			return nil, errors.New("invalid seat_id format: " + pReq.SeatID)
-		}
+		var seatUUIDPtr *uuid.UUID
+		if pReq.SeatID != "" {
+			seatUUID, err := uuid.Parse(pReq.SeatID)
+			if err != nil {
+				return nil, errors.New("invalid seat_id format: " + pReq.SeatID)
+			}
+			seatUUIDPtr = &seatUUID
 
-		seat, err := s.repo.GetSeatByID(pReq.SeatID)
-		if err != nil {
-			return nil, errors.New("seat not found: " + pReq.SeatID)
-		}
-		if !seat.IsAvailable {
-			return nil, errors.New("seat is not available: " + seat.SeatNumber)
-		}
-		if seat.SeatType != fareType.SeatType {
-			return nil, errors.New("seat " + seat.SeatNumber + " type does not match the selected fare class")
-		}
-		if seat.BusInstanceID != busInstanceID {
-			return nil, errors.New("seat " + seat.SeatNumber + " does not belong to the selected bus")
-		}
+			seat, err := s.repo.GetSeatByID(pReq.SeatID)
+			if err != nil {
+				return nil, errors.New("seat not found: " + pReq.SeatID)
+			}
+			if !seat.IsAvailable {
+				return nil, errors.New("seat is not available: " + seat.SeatNumber)
+			}
+			if seat.SeatType != fareType.SeatType {
+				return nil, errors.New("seat " + seat.SeatNumber + " type does not match the selected fare class")
+			}
+			if seat.BusInstanceID != busInstanceID {
+				return nil, errors.New("seat " + seat.SeatNumber + " does not belong to the selected bus")
+			}
 
-		// Child discount — 50% of fare (configurable per operator; 50% default per spec)
-		seatPrice := fareType.Price + seat.ExtraCharge
-		if pReq.PassengerType == "child" {
-			seatPrice = seatPrice * 0.5
+			// Gender validation based on seat category
+			genderUpper := strings.ToUpper(pReq.Gender)
+			if seat.Category == "WOMEN" && genderUpper != "WOMEN" {
+				return nil, errors.New("seat " + seat.SeatNumber + " is reserved for women")
+			}
+			if seat.Category == "MEN" && genderUpper != "MEN" {
+				return nil, errors.New("seat " + seat.SeatNumber + " is reserved for men")
+			}
+
+			// Child discount — 50% of fare (configurable per operator; 50% default per spec)
+			seatPrice := fareType.Price + seat.ExtraCharge
+			if pReq.PassengerType == "child" {
+				seatPrice = seatPrice * 0.5
+			}
+			baseFareTotal += seatPrice
+			seatIDs = append(seatIDs, pReq.SeatID)
+		} else {
+			// Without a seat, we might still charge base fare or a percentage for child/infant
+			// Assuming infant on lap pays 10% or something, but let's default to child rules without extra charge
+			seatPrice := fareType.Price
+			if pReq.PassengerType == "child" || pReq.PassengerType == "infant" {
+				seatPrice = seatPrice * 0.5
+			}
+			baseFareTotal += seatPrice
 		}
-		baseFareTotal += seatPrice
 
 		dob, parseErr := time.Parse("2006-01-02", pReq.DateOfBirth)
 		if parseErr != nil {
@@ -223,7 +245,7 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		}
 
 		passengers = append(passengers, model.Passenger{
-			SeatID:        &seatUUID,
+			SeatID:        seatUUIDPtr,
 			FirstName:     pReq.FirstName,
 			LastName:      pReq.LastName,
 			DateOfBirth:   dob,
@@ -233,8 +255,18 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 			IDNumber:      pReq.IDNumber,
 			IsPrimary:     isPrimary,
 		})
-		seatIDs = append(seatIDs, pReq.SeatID)
 	}
+
+	// ── Deduplicate seatIDs defensively against bad client payloads ───────────
+	seen := make(map[string]struct{})
+	uniqueSeatIDs := seatIDs[:0]
+	for _, id := range seatIDs {
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			uniqueSeatIDs = append(uniqueSeatIDs, id)
+		}
+	}
+	seatIDs = uniqueSeatIDs
 
 	// ── Lock seats in Redis (all-or-nothing) ──────────────────────────────────
 	cfg := config.LoadConfig()
@@ -284,6 +316,27 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		return nil, errors.New("failed to create booking: " + err.Error())
 	}
 
+	// ── Trigger gRPC call to payment service ──────────────────────────────────
+	var paymentURL string
+	if s.payClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		orderID, err := s.payClient.CreateOrder(ctx, booking.ID.String(), booking.TotalAmount, booking.Currency, userID)
+		if err != nil {
+			log.Printf("Payment gRPC Failed: %v", err)
+			// we don't fail the booking, user can retry or wait for auto-expiry
+		} else {
+			paymentURL = orderID // Stripe client secret
+		}
+	}
+
+	fullBooking, err := s.GetBookingByID(booking.ID.String(), userID)
+	if err == nil {
+		fullBooking.PaymentURL = paymentURL
+		return fullBooking, nil
+	}
+
 	resp := &dto.BookingResponse{
 		ID:            booking.ID.String(),
 		PNR:           booking.PNR,
@@ -297,21 +350,7 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		Currency:      booking.Currency,
 		BookedAt:      booking.BookedAt,
 		ExpiresAt:     booking.ExpiresAt,
-		PaymentURL:    "", // default
-	}
-
-	// ── Trigger gRPC call to payment service ──────────────────────────────────
-	if s.payClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		orderID, err := s.payClient.CreateOrder(ctx, booking.ID.String(), booking.TotalAmount, booking.Currency, userID)
-		if err != nil {
-			log.Printf("Payment gRPC Failed: %v", err)
-			// we don't fail the booking, user can retry or wait for auto-expiry
-		} else {
-			resp.PaymentURL = orderID // Stripe client secret
-		}
+		PaymentURL:    paymentURL,
 	}
 
 	return resp, nil

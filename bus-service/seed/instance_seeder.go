@@ -275,25 +275,26 @@ func seedRoutePoints(tx *gorm.DB, isBoardingMode bool) error {
 
 		// 4. Insertion
 		if isBoardingMode {
-			for _, p := range g.boarding {
+			for i, p := range g.boarding {
 				stop, _ := findStop(tx, p.StopName, p.City)
 				bp := model.BoardingPoint{
 					BusInstanceID: inst.ID,
 					BusStopID:     stop.ID,
 					PickupTime:    p.Time,
-					SequenceOrder: p.SequenceOrder,
+					SequenceOrder: i + 1,
 					Landmark:      p.Landmark,
 				}
 				tx.Where("bus_instance_id = ? AND bus_stop_id = ?", inst.ID, stop.ID).FirstOrCreate(&bp)
 			}
 		} else {
-			for _, p := range g.dropping {
+			startSeq := len(g.boarding) + 1
+			for i, p := range g.dropping {
 				stop, _ := findStop(tx, p.StopName, p.City)
 				dp := model.DroppingPoint{
 					BusInstanceID: inst.ID,
 					BusStopID:     stop.ID,
 					DropTime:      p.Time,
-					SequenceOrder: p.SequenceOrder,
+					SequenceOrder: startSeq + i,
 					Landmark:      p.Landmark,
 				}
 				tx.Where("bus_instance_id = ? AND bus_stop_id = ?", inst.ID, stop.ID).FirstOrCreate(&dp)

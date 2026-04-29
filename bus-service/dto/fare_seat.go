@@ -19,4 +19,5 @@ type SeatResponse struct {
 	Position    string  `json:"position"`
 	ExtraCharge float64 `json:"extra_charge"`
 	IsAvailable bool    `json:"is_available"`
+	Category    string  `json:"category"`
 }

@@ -68,7 +68,23 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 
 	// 3. Position Assignment Rule
 	getPosition := func(c, l, r int) string {
-		if c == 1 || c == l+r {
+		total := l + r
+		// Seater logic (Right to Left: W, M, A | A, W)
+		if total == 5 {
+			seq := []string{"WINDOW", "MIDDLE", "AISLE", "AISLE", "WINDOW"}
+			return seq[c-1]
+		}
+		// Semi-Sleeper logic (Right to Left: W, A | A, W)
+		if total == 4 {
+			seq := []string{"WINDOW", "AISLE", "AISLE", "WINDOW"}
+			return seq[c-1]
+		}
+		// Sleeper logic (Right to Left: W | W)
+		if total == 2 {
+			return "WINDOW"
+		}
+		// Fallback for other layouts
+		if c == 1 || c == total {
 			return "WINDOW"
 		}
 		if c == l || c == l+1 {
@@ -89,6 +105,8 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 		prefix = "" // Sleeper uses L/U prefixes
 	}
 
+	seatCounter := 0
+
 	// Handle New Format (Rows + Columns)
 	if activeDetail.Rows > 0 && (left > 0 || right > 0) {
 		totalCols := left + right
@@ -106,22 +124,31 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 						SeatType:      "sleeper",
 						BerthType:     "LOWER",
 						Position:      pos,
+						Category:      "GENERAL",
 					})
 					aSleeper++
 					seatNumbers[numL] = true
 
-					// Upper Berth (Temporarily assigned as LOWER for consistency)
+					// Upper Berth
 					numU := fmt.Sprintf("U%d%s", r, colChar)
 					seats = append(seats, model.Seat{
 						BusInstanceID: busInstanceID,
 						SeatNumber:    numU,
 						SeatType:      "sleeper",
-						BerthType:     "LOWER",
+						BerthType:     "UPPER",
 						Position:      pos,
+						Category:      "GENERAL",
 					})
 					aSleeper++
 					seatNumbers[numU] = true
 				} else {
+					category := "GENERAL"
+					if seatCounter < 8 {
+						category = "WOMEN"
+					} else if seatCounter < 16 {
+						category = "MEN"
+					}
+
 					num := fmt.Sprintf("%s%d%s", prefix, r, colChar)
 					seats = append(seats, model.Seat{
 						BusInstanceID: busInstanceID,
@@ -129,8 +156,10 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 						SeatType:      seatTypeBehavior,
 						BerthType:     "LOWER",
 						Position:      pos,
+						Category:      category,
 					})
 					seatNumbers[num] = true
+					seatCounter++
 					if seatTypeBehavior == "seater" {
 						aSeater++
 					} else {
@@ -144,18 +173,24 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 		if activeType == "sleeper" {
 			for i := 1; i <= activeDetail.LowerBerths; i++ {
 				num := fmt.Sprintf("L%d", i)
-				seats = append(seats, model.Seat{BusInstanceID: busInstanceID, SeatNumber: num, SeatType: "sleeper", BerthType: "LOWER", Position: "WINDOW"})
+				seats = append(seats, model.Seat{BusInstanceID: busInstanceID, SeatNumber: num, SeatType: "sleeper", BerthType: "LOWER", Position: "WINDOW", Category: "GENERAL"})
 				aSleeper++
 			}
 			for i := 1; i <= activeDetail.UpperBerths; i++ {
 				num := fmt.Sprintf("U%d", i)
-				seats = append(seats, model.Seat{BusInstanceID: busInstanceID, SeatNumber: num, SeatType: "sleeper", BerthType: "LOWER", Position: "WINDOW"})
+				seats = append(seats, model.Seat{BusInstanceID: busInstanceID, SeatNumber: num, SeatType: "sleeper", BerthType: "UPPER", Position: "WINDOW", Category: "GENERAL"})
 				aSleeper++
 			}
 		} else {
 			for i := 1; i <= activeDetail.Rows; i++ {
+				category := "GENERAL"
+				if i <= 8 {
+					category = "WOMEN"
+				} else if i <= 16 {
+					category = "MEN"
+				}
 				num := fmt.Sprintf("%s%d", prefix, i)
-				seats = append(seats, model.Seat{BusInstanceID: busInstanceID, SeatNumber: num, SeatType: activeType, BerthType: "LOWER", Position: "WINDOW"})
+				seats = append(seats, model.Seat{BusInstanceID: busInstanceID, SeatNumber: num, SeatType: activeType, BerthType: "LOWER", Position: "WINDOW", Category: category})
 				if activeType == "seater" {
 					aSeater++
 				} else {
@@ -164,7 +199,6 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 			}
 		}
 	}
-
 
 	// 6. Final Validation
 	if len(seatNumbers) != len(seats) {

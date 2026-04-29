@@ -106,11 +106,33 @@ func generateForDate(db *gorm.DB, bus model.Bus, targetDate time.Time) bool {
 
 		// 6. Derive Pricing Strategy
 		var lastInst model.BusInstance
-		basePriceSeater, basePriceSemiSleeper, basePriceSleeper := 500.0, 900.0, 1200.0 // Default fallbacks
+		basePriceSeater, basePriceSemiSleeper, basePriceSleeper := 0.0, 0.0, 0.0
+
+		// Identify active seat types from layout
+		var layout map[string]interface{}
+		if err := json.Unmarshal(bus.BusType.SeatLayout, &layout); err == nil {
+			if _, ok := layout["seater"]; ok {
+				basePriceSeater = 250.0
+			}
+			if _, ok := layout["semi_sleeper"]; ok {
+				basePriceSemiSleeper = 900.0
+			}
+			if _, ok := layout["sleeper"]; ok {
+				basePriceSleeper = 1200.0
+			}
+		}
+
+		// Override with last instance prices if available
 		if err := tx.Where("bus_id = ?", bus.ID).Order("travel_date DESC").First(&lastInst).Error; err == nil {
-			basePriceSeater = lastInst.BasePriceSeater
-			basePriceSemiSleeper = lastInst.BasePriceSemiSleeper
-			basePriceSleeper = lastInst.BasePriceSleeper
+			if basePriceSeater > 0 {
+				basePriceSeater = lastInst.BasePriceSeater
+			}
+			if basePriceSemiSleeper > 0 {
+				basePriceSemiSleeper = lastInst.BasePriceSemiSleeper
+			}
+			if basePriceSleeper > 0 {
+				basePriceSleeper = lastInst.BasePriceSleeper
+			}
 		}
 
 		instance := model.BusInstance{
@@ -235,7 +257,25 @@ func generateForDate(db *gorm.DB, bus model.Bus, targetDate time.Time) bool {
 				}
 			}
 		} else {
-			log.Printf("[CRON WARNING] No template route points found for bus %s. Search might return empty results for this instance.\n", bus.BusNumber)
+			// Fallback: Create default boarding (Origin) and dropping (Destination) points
+			// This ensures the bus appears in search results for its primary route
+			bp := model.BoardingPoint{
+				BusInstanceID: instance.ID,
+				BusStopID:     bus.OriginStopID,
+				PickupTime:    instance.DepartureAt,
+				SequenceOrder: 1,
+				Landmark:      "Main Terminal",
+			}
+			tx.Create(&bp)
+
+			dp := model.DroppingPoint{
+				BusInstanceID: instance.ID,
+				BusStopID:     bus.DestinationStopID,
+				DropTime:      instance.ArrivalAt,
+				SequenceOrder: 2,
+				Landmark:      "Bus Station",
+			}
+			tx.Create(&dp)
 		}
 
 		log.Printf("[CRON SUCCESS] Generated inventory and route for %s on %s\n", bus.BusNumber, targetDate.Format("2006-01-02"))

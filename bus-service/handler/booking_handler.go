@@ -95,13 +95,12 @@ func (h *BookingHandler) ConfirmBooking(c fiber.Ctx) error {
 	}
 
 	bookingID := c.Params("bookingId")
-	secret, err := h.svc.InitiatePayment(bookingID, userID)
-	if err != nil {
+	if err := h.svc.ConfirmBooking(bookingID, userID); err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	return utils.Success(c, fiber.StatusOK, "Payment initiated successfully", fiber.Map{
-		"stripe_client_secret": secret,
+	return utils.Success(c, fiber.StatusOK, "Booking confirmed successfully", fiber.Map{
+		"status": "CONFIRMED",
 	})
 }
 

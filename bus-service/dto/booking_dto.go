@@ -23,7 +23,7 @@ type PassengerRequest struct {
 	PassengerType string `json:"passenger_type" validate:"required,oneof=adult child"`
 	IDType        string `json:"id_type"        validate:"required,oneof=PASSPORT AADHAAR PAN"`
 	IDNumber      string `json:"id_number"      validate:"required"`
-	SeatID        string `json:"seat_id"        validate:"required,uuid"`
+	SeatID        string `json:"seat_id,omitempty"        validate:"omitempty,uuid"`
 }
 
 // CancelBookingRequest is the optional body for POST /api/buses/bookings/:id/cancel.

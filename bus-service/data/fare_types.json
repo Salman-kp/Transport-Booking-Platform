@@ -48,10 +48,10 @@
     "travel_date": "2026-04-15",
     "seat_type": "seater",
     "name": "GENERAL",
-    "price": 500.0,
+    "price": 250.0,
     "is_refundable": false,
-    "cancellation_fee": 500.0,
-    "date_change_fee": 200.0,
+    "cancellation_fee": 250.0,
+    "date_change_fee": 125.0,
     "seats_available": 48
   },
   {
