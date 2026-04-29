@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/junaid9001/tripneo/api-gateway/config"
 	"github.com/junaid9001/tripneo/api-gateway/middleware"
 	"github.com/junaid9001/tripneo/api-gateway/proxy"
@@ -9,36 +9,37 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
+func Register(app *gin.Engine, cfg *config.Config, rdb *redis.Client) {
 
-	app.Get("/health", func(c fiber.Ctx) error {
-		hdr := c.Get("X-Request-ID")
+	app.GET("/health", func(c *gin.Context) {
+		hdr := c.GetHeader("X-Request-ID")
 
-		return c.Status(200).JSON(fiber.Map{"status": "ok", "request_id": hdr})
+		c.JSON(200, gin.H{"status": "ok", "request_id": hdr})
 	})
 
 	RegisterFlightRoutes(app, cfg, rdb)
 	RegisterTrainRoutes(app, cfg, rdb)
 	RegisterBusRoutes(app, cfg, rdb)
+	RegisterChatRoutes(app, cfg, rdb)
+	RegisterQRRoutes(app, cfg, rdb)
 
-	app.Get("/metrics", promhttp.Handler())
+	app.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	api := app.Group("/api")
 
-	api.Get("/health", func(c fiber.Ctx) error {
-		return c.SendString("ok")
+	api.GET("/health", func(c *gin.Context) {
+		c.String(200, "ok")
 	})
 
 	auth := api.Group("/auth")
 
 	// public auth routes
-	auth.Post("/register", proxy.To(cfg.AUTH_SERVICE_URL))
-	auth.Post("/verify-otp", proxy.To(cfg.AUTH_SERVICE_URL))
-	auth.Post("/resend-otp", proxy.To(cfg.AUTH_SERVICE_URL))
-	auth.Post("/login", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.POST("/register", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.POST("/verify-otp", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.POST("/resend-otp", proxy.To(cfg.AUTH_SERVICE_URL))
+	auth.POST("/login", proxy.To(cfg.AUTH_SERVICE_URL))
 
-	auth.Post("/logout",
-		middleware.JwtMiddleware(cfg),
+	auth.POST("/logout",
 		middleware.RateLimit(rdb),
 		proxy.To(cfg.AUTH_SERVICE_URL),
 	)

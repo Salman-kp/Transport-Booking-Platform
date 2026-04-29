@@ -17,6 +17,29 @@ type PaymentCompletedEvent struct {
 	Status    string  `json:"status"`
 }
 
+type PaymentRefundedEvent struct {
+	BookingID string  `json:"booking_id"`
+	PaymentID string  `json:"payment_id"`
+	RefundID  string  `json:"refund_id"`
+	Amount    float64 `json:"amount"`
+	Currency  string  `json:"currency"`
+	UserID    string  `json:"user_id"`
+	Domain    string  `json:"domain"`
+	Status    string  `json:"status"`
+	Reason    string  `json:"reason"`
+}
+
+type PaymentRefundFailedEvent struct {
+	BookingID string  `json:"booking_id"`
+	PaymentID string  `json:"payment_id"`
+	Amount    float64 `json:"amount"`
+	Currency  string  `json:"currency"`
+	UserID    string  `json:"user_id"`
+	Domain    string  `json:"domain"`
+	Status    string  `json:"status"`
+	Reason    string  `json:"reason"`
+}
+
 type Consumer struct {
 	reader *kafka.Reader
 }
@@ -62,5 +85,49 @@ func (c *Consumer) ConsumePaymentEvents(ctx context.Context, handler func(Paymen
 func (c *Consumer) Close() {
 	if c != nil && c.reader != nil {
 		c.reader.Close()
+	}
+}
+
+func (c *Consumer) ConsumeRefundEvents(ctx context.Context, handler func(PaymentRefundedEvent)) {
+	if c == nil || c.reader == nil {
+		return
+	}
+	for {
+		m, err := c.reader.ReadMessage(ctx)
+		if err != nil {
+			log.Printf("[kafka] Error reading refund message: %v", err)
+			break
+		}
+
+		var evt PaymentRefundedEvent
+		if err := json.Unmarshal(m.Value, &evt); err != nil {
+			log.Printf("[kafka] Error unmarshaling refund event: %v", err)
+			continue
+		}
+
+		log.Printf("[kafka] Received refund event for booking: %s", evt.BookingID)
+		handler(evt)
+	}
+}
+
+func (c *Consumer) ConsumeRefundFailedEvents(ctx context.Context, handler func(PaymentRefundFailedEvent)) {
+	if c == nil || c.reader == nil {
+		return
+	}
+	for {
+		m, err := c.reader.ReadMessage(ctx)
+		if err != nil {
+			log.Printf("[kafka] Error reading refund-failed message: %v", err)
+			break
+		}
+
+		var evt PaymentRefundFailedEvent
+		if err := json.Unmarshal(m.Value, &evt); err != nil {
+			log.Printf("[kafka] Error unmarshaling refund-failed event: %v", err)
+			continue
+		}
+
+		log.Printf("[kafka] Received refund-failed event for booking: %s", evt.BookingID)
+		handler(evt)
 	}
 }

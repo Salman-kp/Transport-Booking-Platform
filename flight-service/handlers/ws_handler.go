@@ -19,10 +19,10 @@ func WebsocketUpgradeMiddleware(c fiber.Ctx) error {
 
 // handleWebSocket handles the actual websocket connection flow
 var HandleWebSocket = websocket.New(func(c *websocket.Conn) {
-	// e.g. /ws?userId=123
-	userID := c.Query("userId")
+	// Extract the secure user ID injected by the Gateway's JwtMiddleware
+	userID := c.Headers("X-User-Id")
 	if userID == "" {
-		log.Println("WS: No userId provided")
+		log.Println("WS: Unauthenticated access attempt blocked")
 		return
 	}
 

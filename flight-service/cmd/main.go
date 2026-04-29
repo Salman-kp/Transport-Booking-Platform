@@ -42,14 +42,30 @@ func main() {
 
 	// initialize repos and services for background Workers
 	bookingRepo := repository.NewBookingRepository(db.DB)
-	bookingService := services.NewBookingService(bookingRepo, payClient, ws.DefaultManager)
+	bookingService := services.NewBookingService(bookingRepo, payClient, ws.DefaultManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET)
 
-	// initialize kafka consumer
-	kafkaConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "flight-payment-topic", "flight-service-group")
-	if kafkaConsumer != nil {
-		defer kafkaConsumer.Close()
-		go kafkaConsumer.ConsumePaymentEvents(context.Background(), func(evt kafka.PaymentCompletedEvent) {
+	// initialize kafka consumers
+	paymentConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "flight-payment-topic", "flight-service-group")
+	if paymentConsumer != nil {
+		defer paymentConsumer.Close()
+		go paymentConsumer.ConsumePaymentEvents(context.Background(), func(evt kafka.PaymentCompletedEvent) {
 			bookingService.ProcessPaymentEvent(evt)
+		})
+	}
+
+	refundConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "payment.refunded", "flight-service-group")
+	if refundConsumer != nil {
+		defer refundConsumer.Close()
+		go refundConsumer.ConsumeRefundEvents(context.Background(), func(evt kafka.PaymentRefundedEvent) {
+			bookingService.ProcessRefundedEvent(evt)
+		})
+	}
+
+	refundFailedConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "payment.refund_failed", "flight-service-group")
+	if refundFailedConsumer != nil {
+		defer refundFailedConsumer.Close()
+		go refundFailedConsumer.ConsumeRefundFailedEvents(context.Background(), func(evt kafka.PaymentRefundFailedEvent) {
+			bookingService.ProcessRefundFailedEvent(evt)
 		})
 	}
 
@@ -63,7 +79,8 @@ func main() {
 	app.Get("/api/flights/ws", handlers.HandleWebSocket)
 
 	routes.SetupFlightRoutes(app, db.DB, cfg)
-	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager)
+	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager, cfg)
+	routes.SetupAdminRoutes(app, db.DB)
 
 	c := cron.New()
 	c.AddFunc("0 0 * * *", func() {

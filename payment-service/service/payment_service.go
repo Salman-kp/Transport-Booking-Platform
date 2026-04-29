@@ -30,7 +30,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req *proto.CreateOrder
 	log.Printf("Creating Stripe PaymentIntent for Booking: %s, Amount: %f", req.BookingId, req.Amount)
 
 	// stripe amount is in cents
-	amountInCents := int64(req.Amount * 100)
+	amountInCents := int64(math.Round(req.Amount * 100))
 
 	params := &stripe.PaymentIntentParams{
 		Amount:   stripe.Int64(amountInCents),

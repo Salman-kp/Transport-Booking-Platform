@@ -2,27 +2,32 @@ package proxy
 
 import (
 	"log"
-	"os"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/proxy"
+	"github.com/gin-gonic/gin"
 )
 
-// reverse proxy
-func To(baseURL string) fiber.Handler {
-	return func(c fiber.Ctx) error {
-		frontendURL := os.Getenv("FRONTEND_URL")
-		target := baseURL + c.OriginalURL()
-		log.Println(target)
-		log.Println(c.OriginalURL())
+func To(baseURL string) gin.HandlerFunc {
+	targetURL, err := url.Parse(baseURL)
+	if err != nil {
+		log.Fatalf("Invalid base URL for proxy: %v", err)
+	}
 
-		if err := proxy.Do(c, target); err != nil {
-			return c.Status(502).JSON(fiber.Map{"error": "service unavailable"})
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+
+		if xUserID := req.Header.Get("X-User-ID"); xUserID != "" {
+			req.Header.Set("X-User-ID", xUserID)
 		}
+	}
 
-		c.Set("Access-Control-Allow-Origin", frontendURL)
-		c.Set("Access-Control-Allow-Credentials", "true")
-
-		return nil
+	return func(c *gin.Context) {
+		log.Printf("Proxying %s to %s%s", c.Request.Method, baseURL, c.Request.URL.Path)
+		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

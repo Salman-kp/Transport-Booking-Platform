@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"errors"
+	"time"
+
 	"github.com/junaid9001/tripneo/flight-service/models"
 	"gorm.io/gorm"
 )
@@ -31,7 +34,7 @@ func (r *BookingRepository) GetBookingByPNR(pnr string) (*models.Booking, error)
 
 func (r *BookingRepository) GetBookingsByUserID(userID string) ([]models.Booking, error) {
 	var bookings []models.Booking
-	err := r.db.Preload("FlightInstance").Where("user_id = ?", userID).Find(&bookings).Error
+	err := r.db.Preload("Passengers").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Where("user_id = ?", userID).Find(&bookings).Error
 	return bookings, err
 }
 
@@ -137,8 +140,34 @@ func (r *BookingRepository) GetFareTypeByID(id string) (*models.FareType, error)
 	return &fare, err
 }
 
+func (r *BookingRepository) GetCancellationByBookingID(bookingID string) (*models.Cancellation, error) {
+	var cancellation models.Cancellation
+	err := r.db.Where("booking_id = ?", bookingID).First(&cancellation).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &cancellation, nil
+}
+
 func (r *BookingRepository) GetSeatByID(id string) (*models.Seat, error) {
 	var seat models.Seat
 	err := r.db.First(&seat, "id = ?", id).Error
 	return &seat, err
+}
+
+func (r *BookingRepository) UpdateCancellationRefundStatus(bookingID string, status string) error {
+	updates := map[string]interface{}{
+		"refund_status": status,
+	}
+	if status == "COMPLETED" || status == "FAILED" {
+		now := time.Now()
+		updates["processed_at"] = &now
+	}
+
+	return r.db.Model(&models.Cancellation{}).
+		Where("booking_id = ?", bookingID).
+		Updates(updates).Error
 }

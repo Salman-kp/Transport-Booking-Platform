@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/junaid9001/tripneo/api-gateway/config"
 	"github.com/junaid9001/tripneo/api-gateway/middleware"
 	"github.com/junaid9001/tripneo/api-gateway/redis"
@@ -16,25 +16,22 @@ func main() {
 	cfg := config.LoadConfig()
 	rdb := redis.Client(cfg.REDIS_HOST, cfg.REDIS_PORT)
 
-	app := fiber.New()
+	app := gin.Default()
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.FRONTEND_URL},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Accept", "Authorization"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowCredentials: true,
 	}))
 
 	app.Use(middleware.RequestID())
-
 	app.Use(middleware.PrometheusHTTP())
-
 	app.Use(middleware.IpLimit(rdb))
 
 	routes.Register(app, cfg, rdb)
 
-	if err := app.Listen(":" + cfg.APP_PORT); err != nil {
+	if err := app.Run(":" + cfg.APP_PORT); err != nil {
 		log.Print(err)
 	}
-
 }

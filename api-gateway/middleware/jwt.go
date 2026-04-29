@@ -3,7 +3,7 @@ package middleware
 import (
 	"strings"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/junaid9001/tripneo/api-gateway/config"
 )
@@ -15,47 +15,49 @@ type Claims struct {
 }
 
 // Validate JWT and add claims in header for other services
-func JwtMiddleware(cfg *config.Config) fiber.Handler {
-	return func(c fiber.Ctx) error {
+func JwtMiddleware(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		var tokenStr string
 
-		tokenStr = c.Cookies("access_token")
+		tokenStr, _ = c.Cookie("access_token")
 
 		if tokenStr == "" {
-			auth := c.Get("Authorization")
+			auth := c.GetHeader("Authorization")
 
 			if strings.HasPrefix(auth, "Bearer ") {
 				tokenStr = strings.TrimPrefix(auth, "Bearer ")
 			}
+		}
 
+		// Fallback for WebSockets which cannot easily set Authorization headers
+		if tokenStr == "" {
+			tokenStr = c.Query("token")
 		}
 
 		if tokenStr == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized"})
+			return
 		}
 		claims := &Claims{}
 
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+				return nil, jwt.ErrSignatureInvalid
 			}
 			return []byte(cfg.JWT_SECRET), nil
 		})
 
-		if err != nil {
-			return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
+		if err != nil || !token.Valid {
+			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized"})
+			return
 		}
 
-		if !token.Valid {
-			return c.Status(401).JSON(fiber.Map{"error": "unauthorized"})
-		}
+		c.Request.Header.Set("X-User-ID", claims.UserID)
+		c.Request.Header.Set("X-User-Role", claims.Role)
 
-		c.Request().Header.Set("X-User-ID", claims.UserID)
-		c.Request().Header.Set("X-User-Role", claims.Role)
+		// for ratelimit
+		c.Set("userID", claims.UserID)
 
-		//for ratelimit
-		c.Locals("userID", claims.UserID)
-
-		return c.Next()
+		c.Next()
 	}
 }

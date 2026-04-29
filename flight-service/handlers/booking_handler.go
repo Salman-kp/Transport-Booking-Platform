@@ -87,7 +87,7 @@ func (h *BookingHandler) ConfirmBooking(c fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"message":               "payment initiated successfully",
+		"message":              "payment initiated successfully",
 		"stripe_client_secret": secret,
 	})
 }
@@ -96,14 +96,24 @@ func (h *BookingHandler) CancelBooking(c fiber.Ctx) error {
 	id := c.Params("bookingId")
 	var req dto.CancelBookingRequest
 	if err := c.Bind().JSON(&req); err != nil {
-
-	}
-
-	if err := h.service.CancelBooking(id, &req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{"message": "booking cancelled successfully"})
+	userIDVal := c.Locals("userID")
+	userIDStr := ""
+	if uid, ok := userIDVal.(uuid.UUID); ok {
+		userIDStr = uid.String()
+	}
+
+	resp, err := h.service.CancelBooking(id, userIDStr, &req)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "booking cancelled successfully",
+		"data":    resp,
+	})
 }
 
 func (h *BookingHandler) GetTicket(c fiber.Ctx) error {

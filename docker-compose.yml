@@ -46,6 +46,8 @@ services:
       - "TRAIN_SERVICE_URL=http://train-service:8082"
       - "BUS_SERVICE_URL=http://bus-service:8083"
       - "FLIGHT_SERVICE_URL=http://flight-service:8084"
+      - "CHAT_SERVICE_URL=http://chat-service:8086"
+      - "QR_SERVICE_URL=http://qr-service:8087"
       - "FRONTEND_URL=${FRONTEND_URL}"
     depends_on:
       - redis
@@ -138,3 +140,23 @@ services:
     depends_on:
       - redis
       - redpanda
+
+  chat-service:
+    build:
+      context: ./chat-service
+      dockerfile: Dockerfile
+    expose:
+      - 8086
+    env_file:
+      - ./chat-service/.env
+    environment:
+      DATABASE_URL: ${CHAT_DB}
+    depends_on:
+      - redis
+
+  qr-service:
+    build:
+      context: ./qr-service
+      dockerfile: Dockerfile
+    expose:
+      - 8087

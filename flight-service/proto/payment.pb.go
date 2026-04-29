@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.5
-// source: payment.proto
+// source: proto/payment.proto
 
 package proto
 
@@ -34,7 +34,7 @@ type CreateOrderRequest struct {
 
 func (x *CreateOrderRequest) Reset() {
 	*x = CreateOrderRequest{}
-	mi := &file_payment_proto_msgTypes[0]
+	mi := &file_proto_payment_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +46,7 @@ func (x *CreateOrderRequest) String() string {
 func (*CreateOrderRequest) ProtoMessage() {}
 
 func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_payment_proto_msgTypes[0]
+	mi := &file_proto_payment_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +59,7 @@ func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderRequest.ProtoReflect.Descriptor instead.
 func (*CreateOrderRequest) Descriptor() ([]byte, []int) {
-	return file_payment_proto_rawDescGZIP(), []int{0}
+	return file_proto_payment_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CreateOrderRequest) GetBookingId() string {
@@ -106,7 +106,7 @@ type CreateOrderResponse struct {
 
 func (x *CreateOrderResponse) Reset() {
 	*x = CreateOrderResponse{}
-	mi := &file_payment_proto_msgTypes[1]
+	mi := &file_proto_payment_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -118,7 +118,7 @@ func (x *CreateOrderResponse) String() string {
 func (*CreateOrderResponse) ProtoMessage() {}
 
 func (x *CreateOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_payment_proto_msgTypes[1]
+	mi := &file_proto_payment_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -131,7 +131,7 @@ func (x *CreateOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderResponse.ProtoReflect.Descriptor instead.
 func (*CreateOrderResponse) Descriptor() ([]byte, []int) {
-	return file_payment_proto_rawDescGZIP(), []int{1}
+	return file_proto_payment_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateOrderResponse) GetStripeClientSecret() string {
@@ -141,11 +141,155 @@ func (x *CreateOrderResponse) GetStripeClientSecret() string {
 	return ""
 }
 
-var File_payment_proto protoreflect.FileDescriptor
+type CreateRefundRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BookingId     string                 `protobuf:"bytes,1,opt,name=booking_id,json=bookingId,proto3" json:"booking_id,omitempty"`
+	PaymentId     string                 `protobuf:"bytes,2,opt,name=payment_id,json=paymentId,proto3" json:"payment_id,omitempty"` // Stripe PaymentIntent ID
+	Amount        float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	Domain        string                 `protobuf:"bytes,5,opt,name=domain,proto3" json:"domain,omitempty"` // flight, bus, train
+	UserId        string                 `protobuf:"bytes,6,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,7,opt,name=reason,proto3" json:"reason,omitempty"` // requested_by_customer, duplicate, fraudulent
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_payment_proto_rawDesc = "" +
+func (x *CreateRefundRequest) Reset() {
+	*x = CreateRefundRequest{}
+	mi := &file_proto_payment_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRefundRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRefundRequest) ProtoMessage() {}
+
+func (x *CreateRefundRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_payment_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRefundRequest.ProtoReflect.Descriptor instead.
+func (*CreateRefundRequest) Descriptor() ([]byte, []int) {
+	return file_proto_payment_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CreateRefundRequest) GetBookingId() string {
+	if x != nil {
+		return x.BookingId
+	}
+	return ""
+}
+
+func (x *CreateRefundRequest) GetPaymentId() string {
+	if x != nil {
+		return x.PaymentId
+	}
+	return ""
+}
+
+func (x *CreateRefundRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *CreateRefundRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreateRefundRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *CreateRefundRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateRefundRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type CreateRefundResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RefundId      string                 `protobuf:"bytes,1,opt,name=refund_id,json=refundId,proto3" json:"refund_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRefundResponse) Reset() {
+	*x = CreateRefundResponse{}
+	mi := &file_proto_payment_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRefundResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRefundResponse) ProtoMessage() {}
+
+func (x *CreateRefundResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_payment_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRefundResponse.ProtoReflect.Descriptor instead.
+func (*CreateRefundResponse) Descriptor() ([]byte, []int) {
+	return file_proto_payment_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CreateRefundResponse) GetRefundId() string {
+	if x != nil {
+		return x.RefundId
+	}
+	return ""
+}
+
+func (x *CreateRefundResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+var File_proto_payment_proto protoreflect.FileDescriptor
+
+const file_proto_payment_proto_rawDesc = "" +
 	"\n" +
-	"\rpayment.proto\x12\apayment\"\x98\x01\n" +
+	"\x13proto/payment.proto\x12\apayment\"\x98\x01\n" +
 	"\x12CreateOrderRequest\x12\x1d\n" +
 	"\n" +
 	"booking_id\x18\x01 \x01(\tR\tbookingId\x12\x16\n" +
@@ -154,57 +298,75 @@ const file_payment_proto_rawDesc = "" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12\x17\n" +
 	"\auser_id\x18\x05 \x01(\tR\x06userId\"G\n" +
 	"\x13CreateOrderResponse\x120\n" +
-	"\x14stripe_client_secret\x18\x01 \x01(\tR\x12stripeClientSecret2Z\n" +
+	"\x14stripe_client_secret\x18\x01 \x01(\tR\x12stripeClientSecret\"\xd0\x01\n" +
+	"\x13CreateRefundRequest\x12\x1d\n" +
+	"\n" +
+	"booking_id\x18\x01 \x01(\tR\tbookingId\x12\x1d\n" +
+	"\n" +
+	"payment_id\x18\x02 \x01(\tR\tpaymentId\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06domain\x18\x05 \x01(\tR\x06domain\x12\x17\n" +
+	"\auser_id\x18\x06 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06reason\x18\a \x01(\tR\x06reason\"K\n" +
+	"\x14CreateRefundResponse\x12\x1b\n" +
+	"\trefund_id\x18\x01 \x01(\tR\brefundId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status2\xa7\x01\n" +
 	"\x0ePaymentService\x12H\n" +
-	"\vCreateOrder\x12\x1b.payment.CreateOrderRequest\x1a\x1c.payment.CreateOrderResponseB5Z3github.com/junaid9001/tripneo/payment-service/protob\x06proto3"
+	"\vCreateOrder\x12\x1b.payment.CreateOrderRequest\x1a\x1c.payment.CreateOrderResponse\x12K\n" +
+	"\fCreateRefund\x12\x1c.payment.CreateRefundRequest\x1a\x1d.payment.CreateRefundResponseB5Z3github.com/junaid9001/tripneo/payment-service/protob\x06proto3"
 
 var (
-	file_payment_proto_rawDescOnce sync.Once
-	file_payment_proto_rawDescData []byte
+	file_proto_payment_proto_rawDescOnce sync.Once
+	file_proto_payment_proto_rawDescData []byte
 )
 
-func file_payment_proto_rawDescGZIP() []byte {
-	file_payment_proto_rawDescOnce.Do(func() {
-		file_payment_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_payment_proto_rawDesc), len(file_payment_proto_rawDesc)))
+func file_proto_payment_proto_rawDescGZIP() []byte {
+	file_proto_payment_proto_rawDescOnce.Do(func() {
+		file_proto_payment_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_payment_proto_rawDesc), len(file_proto_payment_proto_rawDesc)))
 	})
-	return file_payment_proto_rawDescData
+	return file_proto_payment_proto_rawDescData
 }
 
-var file_payment_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_payment_proto_goTypes = []any{
-	(*CreateOrderRequest)(nil),  // 0: payment.CreateOrderRequest
-	(*CreateOrderResponse)(nil), // 1: payment.CreateOrderResponse
+var file_proto_payment_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_proto_payment_proto_goTypes = []any{
+	(*CreateOrderRequest)(nil),   // 0: payment.CreateOrderRequest
+	(*CreateOrderResponse)(nil),  // 1: payment.CreateOrderResponse
+	(*CreateRefundRequest)(nil),  // 2: payment.CreateRefundRequest
+	(*CreateRefundResponse)(nil), // 3: payment.CreateRefundResponse
 }
-var file_payment_proto_depIdxs = []int32{
+var file_proto_payment_proto_depIdxs = []int32{
 	0, // 0: payment.PaymentService.CreateOrder:input_type -> payment.CreateOrderRequest
-	1, // 1: payment.PaymentService.CreateOrder:output_type -> payment.CreateOrderResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: payment.PaymentService.CreateRefund:input_type -> payment.CreateRefundRequest
+	1, // 2: payment.PaymentService.CreateOrder:output_type -> payment.CreateOrderResponse
+	3, // 3: payment.PaymentService.CreateRefund:output_type -> payment.CreateRefundResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_payment_proto_init() }
-func file_payment_proto_init() {
-	if File_payment_proto != nil {
+func init() { file_proto_payment_proto_init() }
+func file_proto_payment_proto_init() {
+	if File_proto_payment_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_payment_proto_rawDesc), len(file_payment_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_payment_proto_rawDesc), len(file_proto_payment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_payment_proto_goTypes,
-		DependencyIndexes: file_payment_proto_depIdxs,
-		MessageInfos:      file_payment_proto_msgTypes,
+		GoTypes:           file_proto_payment_proto_goTypes,
+		DependencyIndexes: file_proto_payment_proto_depIdxs,
+		MessageInfos:      file_proto_payment_proto_msgTypes,
 	}.Build()
-	File_payment_proto = out.File
-	file_payment_proto_goTypes = nil
-	file_payment_proto_depIdxs = nil
+	File_proto_payment_proto = out.File
+	file_proto_payment_proto_goTypes = nil
+	file_proto_payment_proto_depIdxs = nil
 }

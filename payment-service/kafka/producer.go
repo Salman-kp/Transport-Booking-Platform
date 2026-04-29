@@ -85,6 +85,8 @@ func (p *Producer) PublishPaymentRefunded(ctx context.Context, evt PaymentRefund
 func (p *Producer) PublishPaymentRefundFailed(ctx context.Context, evt PaymentRefundFailedEvent) {
 	data, _ := json.Marshal(evt)
 	p.Publish(ctx, "payment.refund_failed", evt.BookingID, data)
+}
+
 func (p *Producer) PublishBusPaymentCompleted(ctx context.Context, evt PaymentCompletedEvent) {
 	data, _ := json.Marshal(evt)
 	p.Publish(ctx, "bus-payment-topic", evt.BookingID, data)

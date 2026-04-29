@@ -45,6 +45,26 @@ func (c *PaymentClient) CreateOrder(ctx context.Context, bookingID string, amoun
 	return resp.StripeClientSecret, nil
 }
 
+func (c *PaymentClient) CreateRefund(ctx context.Context, bookingID string, paymentID string, amount float64, currency string, userID string, reason string) (string, string, error) {
+	req := &proto.CreateRefundRequest{
+		BookingId: bookingID,
+		PaymentId: paymentID,
+		Amount:    amount,
+		Currency:  currency,
+		Domain:    "flight",
+		UserId:    userID,
+		Reason:    reason,
+	}
+
+	resp, err := c.client.CreateRefund(ctx, req)
+	if err != nil {
+		log.Printf("gRPC: Failed to create refund: %v", err)
+		return "", "", err
+	}
+
+	return resp.RefundId, resp.Status, nil
+}
+
 func (c *PaymentClient) Close() {
 	if c.conn != nil {
 		c.conn.Close()

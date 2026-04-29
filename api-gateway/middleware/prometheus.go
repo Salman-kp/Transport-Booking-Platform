@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -28,11 +28,12 @@ var httpRequestDuration = prometheus.NewHistogramVec(
 	[]string{"method", "path", "status"},
 )
 
-func PrometheusHTTP() fiber.Handler {
-	return func(c fiber.Ctx) error {
+func PrometheusHTTP() gin.HandlerFunc {
+	return func(c *gin.Context) {
 
-		if c.Path() == "/metrics" {
-			return c.Next()
+		if c.Request.URL.Path == "/metrics" {
+			c.Next()
+			return
 		}
 
 		metricsRegisterOnce.Do(func() {
@@ -41,23 +42,21 @@ func PrometheusHTTP() fiber.Handler {
 
 		start := time.Now()
 
-		err := c.Next()
+		c.Next()
 
 		duration := time.Since(start)
 
-		method := c.Method()
+		method := c.Request.Method
 
-		route := "unmateched"
-		if r := c.Route(); r != nil {
-			route = r.Path
+		route := c.FullPath()
+		if route == "" {
+			route = "unmatched"
 		}
 
-		status := strconv.Itoa(c.Response().StatusCode())
+		status := strconv.Itoa(c.Writer.Status())
 
 		httpRequestTotal.WithLabelValues(method, route, status).Inc()
 
 		httpRequestDuration.WithLabelValues(method, route, status).Observe(duration.Seconds())
-
-		return err
 	}
 }
