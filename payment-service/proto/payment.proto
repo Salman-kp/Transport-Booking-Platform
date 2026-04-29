@@ -6,6 +6,7 @@ option go_package = "github.com/junaid9001/tripneo/payment-service/proto";
 
 service PaymentService {
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc CreateRefund(CreateRefundRequest) returns (CreateRefundResponse);
 }
 
 message CreateOrderRequest {
@@ -18,4 +19,19 @@ message CreateOrderRequest {
 
 message CreateOrderResponse {
   string stripe_client_secret = 1;
+}
+
+message CreateRefundRequest {
+  string booking_id = 1;
+  string payment_id = 2; // Stripe PaymentIntent ID
+  double amount = 3;
+  string currency = 4;
+  string domain = 5; // flight, bus, train
+  string user_id = 6;
+  string reason = 7; // requested_by_customer, duplicate, fraudulent
+}
+
+message CreateRefundResponse {
+  string refund_id = 1;
+  string status = 2;
 }

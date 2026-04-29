@@ -52,7 +52,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	paymentService := service.NewPaymentService(stripeSecretKey)
+	paymentService := service.NewPaymentService(stripeSecretKey, producer)
 	proto.RegisterPaymentServiceServer(grpcServer, paymentService)
 	reflection.Register(grpcServer)
 
