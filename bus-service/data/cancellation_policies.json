@@ -1,30 +1,37 @@
 [
   {
-    "name": "Standard Refund Policy",
-    "hours_before_departure": 120,
-    "refund_percentage": 90.00,
-    "cancellation_fee": 0,
-    "is_active": true
-  },
-  {
-    "name": "Mid-tier Refund Policy",
-    "hours_before_departure": 48,
-    "refund_percentage": 60.00,
-    "cancellation_fee": 0,
-    "is_active": true
-  },
-  {
-    "name": "Last Minute Refund Policy",
+    "name": "Early Cancellation (> 24 hours)",
     "hours_before_departure": 24,
-    "refund_percentage": 25.00,
-    "cancellation_fee": 0,
+    "refund_percentage": 90.00,
+    "cancellation_fee": 15.00,
     "is_active": true
   },
   {
-    "name": "No Refund Policy",
+    "name": "Standard Cancellation (12-24 hours)",
+    "hours_before_departure": 12,
+    "refund_percentage": 75.00,
+    "cancellation_fee": 25.00,
+    "is_active": true
+  },
+  {
+    "name": "Late Cancellation (6-12 hours)",
+    "hours_before_departure": 6,
+    "refund_percentage": 50.00,
+    "cancellation_fee": 50.00,
+    "is_active": true
+  },
+  {
+    "name": "Very Late Cancellation (2-6 hours)",
+    "hours_before_departure": 2,
+    "refund_percentage": 25.00,
+    "cancellation_fee": 75.00,
+    "is_active": true
+  },
+  {
+    "name": "No Refund (< 2 hours)",
     "hours_before_departure": 0,
     "refund_percentage": 0.00,
-    "cancellation_fee": 100,
+    "cancellation_fee": 0,
     "is_active": true
   }
 ]

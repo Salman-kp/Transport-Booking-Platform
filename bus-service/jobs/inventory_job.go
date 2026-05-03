@@ -175,8 +175,8 @@ func generateForDate(db *gorm.DB, bus model.Bus, targetDate time.Time) bool {
 				SeatType:        "sleeper",
 				Name:            "GENERAL",
 				Price:           instance.BasePriceSleeper,
-				IsRefundable:    false,
-				CancellationFee: instance.BasePriceSleeper,
+				IsRefundable:    true,
+				CancellationFee: 50.0, // Fixed fee for general cancellation
 				SeatsAvailable:  instance.AvailableSleeper,
 			})
 			fares = append(fares, model.FareType{
@@ -195,8 +195,8 @@ func generateForDate(db *gorm.DB, bus model.Bus, targetDate time.Time) bool {
 				SeatType:        "semi_sleeper",
 				Name:            "GENERAL",
 				Price:           instance.BasePriceSemiSleeper,
-				IsRefundable:    false,
-				CancellationFee: instance.BasePriceSemiSleeper,
+				IsRefundable:    true,
+				CancellationFee: 40.0,
 				SeatsAvailable:  instance.AvailableSemiSleeper,
 			})
 		}
@@ -206,8 +206,8 @@ func generateForDate(db *gorm.DB, bus model.Bus, targetDate time.Time) bool {
 				SeatType:        "seater",
 				Name:            "GENERAL",
 				Price:           instance.BasePriceSeater,
-				IsRefundable:    false,
-				CancellationFee: instance.BasePriceSeater,
+				IsRefundable:    true,
+				CancellationFee: 25.0,
 				SeatsAvailable:  instance.AvailableSeater,
 			})
 		}

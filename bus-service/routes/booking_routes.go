@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/Salman-kp/tripneo/bus-service/config"
 	"github.com/Salman-kp/tripneo/bus-service/handler"
 	"github.com/Salman-kp/tripneo/bus-service/middleware"
 	busredis "github.com/Salman-kp/tripneo/bus-service/redis"
@@ -12,10 +13,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func SetupBookingRoutes(app *fiber.App, db *gorm.DB, payClient *rpc.PaymentClient, wsManager *ws.Manager) {
+func SetupBookingRoutes(app *fiber.App, db *gorm.DB, payClient *rpc.PaymentClient, wsManager *ws.Manager, cfg *config.Config) {
 
 	bookingRepo := repository.NewBookingRepository(db)
-	bookingService := service.NewBookingService(bookingRepo, busredis.Client, payClient, wsManager)
+	bookingService := service.NewBookingService(bookingRepo, busredis.Client, payClient, wsManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET)
 	bookingHandler := handler.NewBookingHandler(bookingService)
 
 	api := app.Group("/api/buses/bookings")

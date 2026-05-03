@@ -26,13 +26,11 @@ func main() {
 	db.ConnectPostgres(cfg)
 	redis.ConnectRedis(cfg)
 
-	log.Println("RUN_SEED_ON_BOOT =", cfg.RUN_SEED_ON_BOOT)
+	go service.StartRedisExpirySubscriber()
 
 	if cfg.RUN_SEED_ON_BOOT == "true" {
 		seed.SeedAll(db.DB)
 	}
-
-	go service.StartRedisExpirySubscriber()
 
 	// initialize gRPC Client
 	payClient, err := rpc.NewPaymentClient(cfg.PAYMENT_SERVICE_ADDR)
@@ -44,14 +42,30 @@ func main() {
 
 	// initialize repos and services for background Workers
 	bookingRepo := repository.NewBookingRepository(db.DB)
-	bookingService := service.NewBookingService(bookingRepo, redis.Client, payClient, ws.DefaultManager)
+	bookingService := service.NewBookingService(bookingRepo, redis.Client, payClient, ws.DefaultManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET)
 
 	// initialize kafka consumer
-	kafkaConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "bus-payment-topic", "bus-service-group")
-	if kafkaConsumer != nil {
-		defer kafkaConsumer.Close()
-		go kafkaConsumer.ConsumePaymentEvents(context.Background(), func(evt kafka.PaymentCompletedEvent) {
+	paymentConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "bus-payment-topic", "bus-service-group")
+	if paymentConsumer != nil {
+		defer paymentConsumer.Close()
+		go paymentConsumer.ConsumePaymentEvents(context.Background(), func(evt kafka.PaymentCompletedEvent) {
 			bookingService.ProcessPaymentEvent(evt)
+		})
+	}
+
+	refundConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "payment.refunded", "bus-service-group")
+	if refundConsumer != nil {
+		defer refundConsumer.Close()
+		go refundConsumer.ConsumeRefundEvents(context.Background(), func(evt kafka.PaymentRefundedEvent) {
+			bookingService.ProcessRefundedEvent(evt)
+		})
+	}
+
+	refundFailedConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "payment.refund_failed", "bus-service-group")
+	if refundFailedConsumer != nil {
+		defer refundFailedConsumer.Close()
+		go refundFailedConsumer.ConsumeRefundFailedEvents(context.Background(), func(evt kafka.PaymentRefundFailedEvent) {
+			bookingService.ProcessRefundFailedEvent(evt)
 		})
 	}
 
@@ -65,7 +79,7 @@ func main() {
 	app.Get("/api/buses/ws", handler.HandleWebSocket)
 
 	routes.SetupBusRoutes(app, db.DB, cfg)
-	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager)
+	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager, cfg)
 
 	// ── Background jobs ────────────
 	c := cron.New()

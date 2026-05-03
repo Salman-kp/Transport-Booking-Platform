@@ -5,7 +5,7 @@
     "seat_type": "sleeper",
     "name": "GENERAL",
     "price": 1200.0,
-    "is_refundable": false,
+    "is_refundable": true,
     "cancellation_fee": 1200.0,
     "date_change_fee": 500.0,
     "seats_available": 28
@@ -27,7 +27,7 @@
     "seat_type": "semi_sleeper",
     "name": "GENERAL",
     "price": 900.0,
-    "is_refundable": false,
+    "is_refundable": true,
     "cancellation_fee": 900.0,
     "date_change_fee": 400.0,
     "seats_available": 22
@@ -49,7 +49,7 @@
     "seat_type": "seater",
     "name": "GENERAL",
     "price": 250.0,
-    "is_refundable": false,
+    "is_refundable": true,
     "cancellation_fee": 250.0,
     "date_change_fee": 125.0,
     "seats_available": 48
@@ -60,7 +60,7 @@
     "seat_type": "sleeper",
     "name": "GENERAL",
     "price": 1250.0,
-    "is_refundable": false,
+    "is_refundable": true,
     "cancellation_fee": 1250.0,
     "date_change_fee": 500.0,
     "seats_available": 28

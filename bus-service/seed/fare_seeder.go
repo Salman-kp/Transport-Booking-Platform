@@ -89,10 +89,26 @@ func SeedFareTypes(tx *gorm.DB) error {
 			SeatsAvailable:  seatsToAssign,
 		}
 
-		// 3. Idempotent Insert using unique constraints
-		if err := tx.Where("bus_instance_id = ? AND name = ? AND seat_type = ?", inst.ID, r.Name, r.SeatType).FirstOrCreate(&ft).Error; err != nil {
-			log.Printf("[seed] error creating fare for %s: %v\n", r.BusNumber, err)
-			return err
+		// 3. Idempotent Insert or Update
+		var existing model.FareType
+		err := tx.Where("bus_instance_id = ? AND name = ? AND seat_type = ?", inst.ID, r.Name, r.SeatType).First(&existing).Error
+		if err == nil {
+			// Update existing record to match latest JSON settings
+			existing.Price = r.Price
+			existing.IsRefundable = r.IsRefundable
+			existing.CancellationFee = r.CancellationFee
+			existing.DateChangeFee = r.DateChangeFee
+			existing.SeatsAvailable = seatsToAssign
+			if err := tx.Save(&existing).Error; err != nil {
+				log.Printf("[seed] error updating fare for %s: %v\n", r.BusNumber, err)
+				return err
+			}
+		} else {
+			// Create new record
+			if err := tx.Create(&ft).Error; err != nil {
+				log.Printf("[seed] error creating fare for %s: %v\n", r.BusNumber, err)
+				return err
+			}
 		}
 	}
 

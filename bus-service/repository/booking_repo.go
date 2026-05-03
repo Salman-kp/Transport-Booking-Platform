@@ -22,6 +22,8 @@ type BookingRepository interface {
 	// Cancellation
 	CreateCancellation(cancel *model.Cancellation) error
 	GetActiveCancellationPolicy(hoursBeforeDeparture int) (*model.CancellationPolicy, error)
+	UpdateCancellationRefundStatus(bookingID string, status string) error
+	GetCancellationByBookingID(bookingID string) (*model.Cancellation, error)
 
 	// Validation helpers used during CreateBooking
 	GetFareTypeByID(id string) (*model.FareType, error)
@@ -63,6 +65,7 @@ func (r *bookingRepository) CreateBooking(booking *model.Booking, passengers []m
 func (r *bookingRepository) FindBookingByID(id string, userID string) (*model.Booking, error) {
 	var booking model.Booking
 	err := r.db.
+		Preload("BusInstance").
 		Preload("BusInstance.Bus.Operator").
 		Preload("BusInstance.Bus.OriginStop").
 		Preload("BusInstance.Bus.DestinationStop").
@@ -70,6 +73,7 @@ func (r *bookingRepository) FindBookingByID(id string, userID string) (*model.Bo
 		Preload("BoardingPoint.BusStop").
 		Preload("DroppingPoint.BusStop").
 		Preload("Passengers.Seat").
+		Preload("Cancellation").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&booking).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -81,6 +85,7 @@ func (r *bookingRepository) FindBookingByID(id string, userID string) (*model.Bo
 func (r *bookingRepository) FindBookingByPNR(pnr string, userID string) (*model.Booking, error) {
 	var booking model.Booking
 	err := r.db.
+		Preload("BusInstance").
 		Preload("BusInstance.Bus.Operator").
 		Preload("BusInstance.Bus.OriginStop").
 		Preload("BusInstance.Bus.DestinationStop").
@@ -88,6 +93,7 @@ func (r *bookingRepository) FindBookingByPNR(pnr string, userID string) (*model.
 		Preload("BoardingPoint.BusStop").
 		Preload("DroppingPoint.BusStop").
 		Preload("Passengers.Seat").
+		Preload("Cancellation").
 		Where("pnr = ? AND user_id = ?", pnr, userID).
 		First(&booking).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -102,7 +108,10 @@ func (r *bookingRepository) FindBookingsByUserID(userID string) ([]model.Booking
 		Preload("BusInstance.Bus.Operator").
 		Preload("BusInstance.Bus.OriginStop").
 		Preload("BusInstance.Bus.DestinationStop").
-		Preload("Passengers").
+		Preload("BoardingPoint.BusStop").
+		Preload("DroppingPoint.BusStop").
+		Preload("Passengers.Seat").
+		Preload("Cancellation").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&bookings).Error
@@ -152,6 +161,22 @@ func (r *bookingRepository) GetETicketByBookingID(bookingID string, userID strin
 
 func (r *bookingRepository) CreateCancellation(cancel *model.Cancellation) error {
 	return r.db.Create(cancel).Error
+}
+
+func (r *bookingRepository) UpdateCancellationRefundStatus(bookingID string, status string) error {
+	res := r.db.Model(&model.Cancellation{}).
+		Where("booking_id = ?", bookingID).
+		Update("refund_status", status)
+	return res.Error
+}
+
+func (r *bookingRepository) GetCancellationByBookingID(bookingID string) (*model.Cancellation, error) {
+	var cancel model.Cancellation
+	err := r.db.Where("booking_id = ?", bookingID).First(&cancel).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &cancel, err
 }
 
 // GetActiveCancellationPolicy returns the matching refund policy for the given

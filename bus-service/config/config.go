@@ -18,7 +18,8 @@ type Config struct {
 	KAFKA_BROKERS                   string
 	REDPANDA_GROUP_ID               string
 	PAYMENT_SERVICE_ADDR            string
-	QR_SERVICE_ADDR                 string
+	QR_PUBLIC_BASE_URL              string
+	QR_SIGNING_SECRET               string
 	PNR_SALT                        string
 	BOOKING_EXPIRY_MINUTES          string
 	SEAT_LOCK_MINUTES               string
@@ -55,11 +56,12 @@ func LoadConfig() *Config {
 		KAFKA_BROKERS:                   getEnv("KAFKA_BROKERS", "localhost:19092"),
 		REDPANDA_GROUP_ID:               getEnv("REDPANDA_GROUP_ID", "bus-service"),
 		PAYMENT_SERVICE_ADDR:            getEnv("PAYMENT_SERVICE_ADDR", "localhost:8085"),
-		QR_SERVICE_ADDR:                 getEnv("QR_SERVICE_ADDR", "localhost:8086"),
+		QR_PUBLIC_BASE_URL:              getEnv("QR_PUBLIC_BASE_URL", "http://localhost:8080/api/qr/generate"),
+		QR_SIGNING_SECRET:               getEnv("QR_SIGNING_SECRET", "dev-insecure-change-me"),
 		PNR_SALT:                        getEnv("PNR_SALT", "salt123"),
-		BOOKING_EXPIRY_MINUTES:          getEnv("BOOKING_EXPIRY_MINUTES", "15"),
+		BOOKING_EXPIRY_MINUTES:          getEnv("BOOKING_EXPIRY_MINUTES", "10"),
 		SEAT_LOCK_MINUTES:               getEnv("SEAT_LOCK_MINUTES", "10"),
-		PRICING_ENGINE_INTERVAL_MINUTES: getEnv("PRICING_ENGINE_INTERVAL_MINUTES", "15"),
+		PRICING_ENGINE_INTERVAL_MINUTES: getEnv("PRICING_ENGINE_INTERVAL_MINUTES", "10"),
 		GPS_LOCATION_TTL_SECONDS:        getEnv("GPS_LOCATION_TTL_SECONDS", "90"),
 	}
 }

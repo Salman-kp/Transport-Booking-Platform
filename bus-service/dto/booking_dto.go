@@ -51,9 +51,9 @@ type BookingResponse struct {
 	ExpiresAt     *time.Time         `json:"expires_at,omitempty"`
 	Passengers    []PassengerDetails `json:"passengers,omitempty"`
 	PaymentRef    string             `json:"payment_ref,omitempty"`
-	// PaymentURL is a placeholder for when the Payment Service is integrated.
-	// The future Payment Service will listen to bus.booking.created and populate this.
-	PaymentURL string `json:"payment_url"`
+	PaymentURL    string             `json:"payment_url"`
+	RefundAmount  *float64           `json:"refund_amount,omitempty"`
+	RefundStatus  string             `json:"refund_status,omitempty"`
 }
 
 // PassengerDetails is a summary of a passenger returned in booking responses.
@@ -76,9 +76,26 @@ type CancelBookingResponse struct {
 
 // TicketResponse is returned by GET /api/buses/bookings/:id/ticket.
 type TicketResponse struct {
-	BookingID    string    `json:"booking_id"`
-	PNR          string    `json:"pnr"`
-	TicketNumber string    `json:"ticket_number"`
-	QRCodeURL    string    `json:"qr_code_url"`
-	IssuedAt     time.Time `json:"issued_at"`
+	BookingID    string             `json:"booking_id"`
+	PNR          string             `json:"pnr"`
+	TicketNumber string             `json:"ticket_number"`
+	QRCodeURL    string             `json:"qr_code_url"`
+	IssuedAt     time.Time          `json:"issued_at"`
+	Status       string             `json:"status"`
+	TotalAmount  float64            `json:"total_amount"`
+	SeatType     string             `json:"seat_type,omitempty"`
+	Passengers   []PassengerDetails `json:"passengers,omitempty"`
+	Bus          *BusDetails        `json:"bus,omitempty"`
+	RefundAmount *float64           `json:"refund_amount,omitempty"`
+	RefundStatus string             `json:"refund_status,omitempty"`
+}
+
+type BusDetails struct {
+	InstanceID    string `json:"instance_id"`
+	BusNumber     string `json:"bus_number"`
+	Origin        string `json:"origin"`
+	Destination   string `json:"destination"`
+	DepartureTime string `json:"departure_time"`
+	ArrivalTime   string `json:"arrival_time"`
+	OperatorName  string `json:"operator_name"`
 }
