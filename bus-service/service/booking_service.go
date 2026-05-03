@@ -2,10 +2,17 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"math"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -28,27 +35,33 @@ type BookingService interface {
 	GetBookingByID(id string, userID string) (*dto.BookingResponse, error)
 	GetBookingByPNR(pnr string, userID string) (*dto.BookingResponse, error)
 	GetUserBookings(userID string) ([]dto.BookingResponse, error)
-	ConfirmBooking(id string, userID string) error
+	ConfirmBooking(id string, userID string, paymentRef string) error
 	CancelBooking(id string, userID string, req *dto.CancelBookingRequest) (*dto.CancelBookingResponse, error)
 	GetBookingTicket(id string, userID string) (*dto.TicketResponse, error)
 	InitiatePayment(id string, userID string) (string, error)
 	ProcessPaymentEvent(evt kafka.PaymentCompletedEvent)
+	ProcessRefundedEvent(evt kafka.PaymentRefundedEvent)
+	ProcessRefundFailedEvent(evt kafka.PaymentRefundFailedEvent)
 }
 
 type bookingService struct {
-	repo      repository.BookingRepository
-	rdb       *goredis.Client
-	payClient *rpc.PaymentClient
-	wsManager *ws.Manager
+	repo            repository.BookingRepository
+	rdb             *goredis.Client
+	payClient       *rpc.PaymentClient
+	wsManager       *ws.Manager
+	qrPublicBaseURL string
+	qrSigningSecret string
 }
 
 // NewBookingService constructs a BookingService.
-func NewBookingService(repo repository.BookingRepository, rdb *goredis.Client, payClient *rpc.PaymentClient, wsManager *ws.Manager) BookingService {
+func NewBookingService(repo repository.BookingRepository, rdb *goredis.Client, payClient *rpc.PaymentClient, wsManager *ws.Manager, qrPublicBaseURL string, qrSigningSecret string) BookingService {
 	return &bookingService{
-		repo:      repo,
-		rdb:       rdb,
-		payClient: payClient,
-		wsManager: wsManager,
+		repo:            repo,
+		rdb:             rdb,
+		payClient:       payClient,
+		wsManager:       wsManager,
+		qrPublicBaseURL: qrPublicBaseURL,
+		qrSigningSecret: qrSigningSecret,
 	}
 }
 
@@ -86,21 +99,19 @@ func bookingToDTO(b *model.Booking) *dto.BookingResponse {
 		BookedAt:      b.BookedAt,
 		ExpiresAt:     b.ExpiresAt,
 		PaymentRef:    b.PaymentRef,
-		// PaymentURL is empty until the Payment Service is integrated.
-		// The future Payment Service listens to bus.booking.created and generates the Stripe URL.
-		PaymentURL: "",
+		PaymentURL:    "",
 	}
 
 	if b.BoardingPoint.BusStop.Name != "" {
 		resp.BoardingPoint = b.BoardingPoint.BusStop.Name
 		if b.BoardingPoint.Landmark != "" {
-			resp.BoardingPoint += " — " + b.BoardingPoint.Landmark
+			resp.BoardingPoint += " - ” " + b.BoardingPoint.Landmark
 		}
 	}
 	if b.DroppingPoint.BusStop.Name != "" {
 		resp.DroppingPoint = b.DroppingPoint.BusStop.Name
 		if b.DroppingPoint.Landmark != "" {
-			resp.DroppingPoint += " — " + b.DroppingPoint.Landmark
+			resp.DroppingPoint += " - ” " + b.DroppingPoint.Landmark
 		}
 	}
 
@@ -116,15 +127,15 @@ func bookingToDTO(b *model.Booking) *dto.BookingResponse {
 		}
 		resp.Passengers = append(resp.Passengers, pd)
 	}
+
+	// Enrichment for cancellation status if it exists
+	// This will be handled in GetBookingByID for performance if needed,
+	// but for now, we'll assume the caller might want to check repo.
 	return resp
 }
 
-// ── CreateBooking ─────────────────────────────────────────────────────────────
-
 func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingRequest) (*dto.BookingResponse, error) {
 	ctx := context.Background()
-
-	// ── Parse UUIDs ──────────────────────────────────────────────────────────
 	busInstanceID, err := uuid.Parse(req.BusInstanceID)
 	if err != nil {
 		return nil, errors.New("invalid bus_instance_id format")
@@ -149,7 +160,6 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		return nil, errors.New("at least one passenger is required")
 	}
 
-	// ── Validate fare type belongs to this bus instance ───────────────────────
 	fareType, err := s.repo.GetFareTypeByID(req.FareTypeID)
 	if err != nil {
 		return nil, errors.New("fare type not found")
@@ -158,7 +168,6 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		return nil, errors.New("fare type does not belong to the selected bus")
 	}
 
-	// ── Validate boarding/dropping points ─────────────────────────────────────
 	bp, err := s.repo.GetBoardingPointByID(req.BoardingPointID)
 	if err != nil {
 		return nil, errors.New("boarding point not found")
@@ -178,7 +187,6 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		return nil, errors.New("dropping point must be after boarding point in the route sequence")
 	}
 
-	// ── Validate each seat and build passenger list ───────────────────────────
 	seatIDs := make([]string, 0, len(req.Passengers))
 	passengers := make([]model.Passenger, 0, len(req.Passengers))
 	var baseFareTotal float64
@@ -216,7 +224,7 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 				return nil, errors.New("seat " + seat.SeatNumber + " is reserved for men")
 			}
 
-			// Child discount — 50% of fare (configurable per operator; 50% default per spec)
+			// Child discount â€” 50% of fare (configurable per operator; 50% default per spec)
 			seatPrice := fareType.Price + seat.ExtraCharge
 			if pReq.PassengerType == "child" {
 				seatPrice = seatPrice * 0.5
@@ -235,7 +243,7 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 
 		dob, parseErr := time.Parse("2006-01-02", pReq.DateOfBirth)
 		if parseErr != nil {
-			return nil, errors.New("invalid date_of_birth format for passenger " + pReq.FirstName + " — expected YYYY-MM-DD")
+			return nil, errors.New("invalid date_of_birth format for passenger " + pReq.FirstName + " â€” expected YYYY-MM-DD")
 		}
 
 		// First passenger is primary by default
@@ -257,7 +265,6 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		})
 	}
 
-	// ── Deduplicate seatIDs defensively against bad client payloads ───────────
 	seen := make(map[string]struct{})
 	uniqueSeatIDs := seatIDs[:0]
 	for _, id := range seatIDs {
@@ -268,7 +275,6 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 	}
 	seatIDs = uniqueSeatIDs
 
-	// ── Lock seats in Redis (all-or-nothing) ──────────────────────────────────
 	cfg := config.LoadConfig()
 	expMin, _ := strconv.Atoi(cfg.BOOKING_EXPIRY_MINUTES)
 	if expMin <= 0 {
@@ -277,10 +283,9 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 	lockTTL := time.Duration(expMin) * time.Minute
 
 	if err := busredis.LockSeats(ctx, s.rdb, req.BusInstanceID, seatIDs, userID, lockTTL); err != nil {
-		return nil, errors.New("seat(s) temporarily held by another session — " + err.Error())
+		return nil, errors.New("seat(s) temporarily held by another session â€” " + err.Error())
 	}
 
-	// ── Compute pricing ───────────────────────────────────────────────────────
 	taxes := baseFareTotal * 0.05 // 5% GST
 	totalAmount := baseFareTotal + taxes
 
@@ -316,7 +321,6 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 		return nil, errors.New("failed to create booking: " + err.Error())
 	}
 
-	// ── Trigger gRPC call to payment service ──────────────────────────────────
 	var paymentURL string
 	if s.payClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -356,27 +360,46 @@ func (s *bookingService) CreateBooking(userID string, req dto.CreateBookingReque
 	return resp, nil
 }
 
-// ── GetBookingByID ────────────────────────────────────────────────────────────
+// â”€â”€ GetBookingByID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func (s *bookingService) GetBookingByID(id string, userID string) (*dto.BookingResponse, error) {
 	booking, err := s.repo.FindBookingByID(id, userID)
 	if err != nil {
 		return nil, err
 	}
-	return bookingToDTO(booking), nil
+	resp := bookingToDTO(booking)
+	s.enrichBookingRefundFields(booking.ID.String(), resp)
+	return resp, nil
 }
 
-// ── GetBookingByPNR ───────────────────────────────────────────────────────────
+func (s *bookingService) enrichBookingRefundFields(bookingID string, resp *dto.BookingResponse) {
+	if resp == nil {
+		return
+	}
+
+	cancellation, err := s.repo.GetCancellationByBookingID(bookingID)
+	if err != nil || cancellation == nil {
+		return
+	}
+
+	amount := cancellation.RefundAmount
+	resp.RefundAmount = &amount
+	resp.RefundStatus = cancellation.RefundStatus
+}
+
+// ——— GetBookingByPNR ————————————————————————————————————————————————————————
 
 func (s *bookingService) GetBookingByPNR(pnr string, userID string) (*dto.BookingResponse, error) {
 	booking, err := s.repo.FindBookingByPNR(pnr, userID)
 	if err != nil {
 		return nil, err
 	}
-	return bookingToDTO(booking), nil
+	resp := bookingToDTO(booking)
+	s.enrichBookingRefundFields(booking.ID.String(), resp)
+	return resp, nil
 }
 
-// ── GetUserBookings ───────────────────────────────────────────────────────────
+// ——— GetUserBookings ————————————————————————————————————————————————————————
 
 func (s *bookingService) GetUserBookings(userID string) ([]dto.BookingResponse, error) {
 	bookings, err := s.repo.FindBookingsByUserID(userID)
@@ -385,7 +408,9 @@ func (s *bookingService) GetUserBookings(userID string) ([]dto.BookingResponse, 
 	}
 	resp := make([]dto.BookingResponse, 0, len(bookings))
 	for i := range bookings {
-		resp = append(resp, *bookingToDTO(&bookings[i]))
+		dto := bookingToDTO(&bookings[i])
+		s.enrichBookingRefundFields(bookings[i].ID.String(), dto)
+		resp = append(resp, *dto)
 	}
 	return resp, nil
 }
@@ -416,13 +441,13 @@ func (s *bookingService) InitiatePayment(id string, userID string) (string, erro
 	return "", errors.New("payment service is currently unavailable")
 }
 
-// ── ConfirmBooking ────────────────────────────────────────────────────────────
+// ——— ConfirmBooking —————————————————————————————————————————————————————————
 //
 // Confirms a PENDING_PAYMENT booking. In production this is triggered
 // automatically by the redpanda consumer when payment.completed arrives from the
 // Payment Service.  The HTTP endpoint remains available for manual/admin use.
 
-func (s *bookingService) ConfirmBooking(id string, userID string) error {
+func (s *bookingService) ConfirmBooking(id string, userID string, paymentRef string) error {
 	ctx := context.Background()
 
 	booking, err := s.repo.FindBookingByID(id, userID)
@@ -438,7 +463,7 @@ func (s *bookingService) ConfirmBooking(id string, userID string) error {
 	}
 
 	// 1. Update status → CONFIRMED
-	if err := s.repo.UpdateBookingStatus(id, userID, "CONFIRMED", ""); err != nil {
+	if err := s.repo.UpdateBookingStatus(id, userID, "CONFIRMED", paymentRef); err != nil {
 		return err
 	}
 
@@ -461,13 +486,19 @@ func (s *bookingService) ConfirmBooking(id string, userID string) error {
 		log.Printf("[booking-service] Inventory update failed (non-fatal): %v", err)
 	}
 
-	// 5. Generate e-ticket
+	// 5. Generate e-ticket with signed QR logic
+	qrData, err := s.buildQRData(booking)
+	if err != nil {
+		log.Printf("[QR ERROR] Failed to build QR data: %v", err)
+		return fmt.Errorf("failed to generate secure QR data: %w", err)
+	}
+
 	ticketNumber := "BUS-" + booking.PNR
 	eTicket := &model.ETicket{
 		BookingID:    booking.ID,
 		TicketNumber: ticketNumber,
-		QRCodeURL:    "https://storage.tripneo.com/qr/bus/" + booking.PNR + ".png",
-		QRData:       "SIGNED:" + booking.PNR + ":" + booking.ID.String(),
+		QRCodeURL:    s.buildQRCodeURL(qrData),
+		QRData:       qrData,
 	}
 	_ = s.repo.SaveETicket(eTicket)
 
@@ -475,7 +506,55 @@ func (s *bookingService) ConfirmBooking(id string, userID string) error {
 	return nil
 }
 
-// ── CancelBooking ─────────────────────────────────────────────────────────────
+func (s *bookingService) buildQRData(booking *model.Booking) (string, error) {
+	payload := map[string]interface{}{
+		"booking_id":      booking.ID.String(),
+		"pnr":             booking.PNR,
+		"bus_instance_id": booking.BusInstanceID.String(),
+		"user_id":         booking.UserID.String(),
+		"issued_at":       time.Now().UTC().Format(time.RFC3339),
+		"domain":          "bus",
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	secret := strings.TrimSpace(s.qrSigningSecret)
+	if secret == "" {
+		secret = "dev-insecure-change-me"
+	}
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	if _, err := mac.Write(payloadBytes); err != nil {
+		return "", err
+	}
+	signature := mac.Sum(nil)
+
+	encodedPayload := base64.RawURLEncoding.EncodeToString(payloadBytes)
+	encodedSignature := base64.RawURLEncoding.EncodeToString(signature)
+	return fmt.Sprintf("v1.%s.%s", encodedPayload, encodedSignature), nil
+}
+
+func (s *bookingService) buildQRCodeURL(data string) string {
+	base := strings.TrimSpace(s.qrPublicBaseURL)
+	if base == "" {
+		base = "http://localhost:8080/api/qr/generate"
+	}
+
+	u, err := url.Parse(base)
+	if err != nil {
+		return base + "?data=" + url.QueryEscape(data)
+	}
+
+	q := u.Query()
+	q.Set("data", data)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// ——— CancelBooking ——————————————————————————————————————————————————————————
 
 func (s *bookingService) CancelBooking(id string, userID string, req *dto.CancelBookingRequest) (*dto.CancelBookingResponse, error) {
 	ctx := context.Background()
@@ -489,7 +568,20 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 	}
 
 	// ── Determine refund based on cancellation policy table ───────────────────
-	hoursLeft := int(time.Until(booking.BusInstance.DepartureAt).Hours())
+	if booking.BusInstance.DepartureAt.IsZero() || booking.BusInstance.TravelDate.IsZero() {
+		return nil, errors.New("cannot determine refund: bus travel date or departure time is missing")
+	}
+
+	// Combine TravelDate (Date part) and DepartureAt (Time part) for robustness
+	departureDate := booking.BusInstance.TravelDate
+	departureTime := booking.BusInstance.DepartureAt
+	fullDepartureAt := time.Date(
+		departureDate.Year(), departureDate.Month(), departureDate.Day(),
+		departureTime.Hour(), departureTime.Minute(), departureTime.Second(),
+		0, departureTime.Location(),
+	)
+
+	hoursLeft := int(math.Ceil(time.Until(fullDepartureAt).Hours()))
 	policy, err := s.repo.GetActiveCancellationPolicy(hoursLeft)
 	if err != nil {
 		return nil, errors.New("failed to determine refund policy: " + err.Error())
@@ -498,13 +590,27 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 	// If the fare type is non-refundable, override to 0% refund
 	refundPct := policy.RefundPercentage
 	if !booking.FareType.IsRefundable && booking.Status == "CONFIRMED" {
+		log.Printf("[CANCEL INFO] PNR: %s has non-refundable fare type. Overriding refund to 0%%.", booking.PNR)
 		refundPct = 0
 	}
 
-	refundAmount := booking.TotalAmount * (refundPct / 100)
+	refundAmount := math.Round(booking.TotalAmount*(refundPct/100)*100) / 100
+	
+	// Subtract cancellation fee if applicable
+	if policy.CancellationFee > 0 {
+		if refundAmount > policy.CancellationFee {
+			refundAmount -= policy.CancellationFee
+		} else {
+			refundAmount = 0
+		}
+	}
+
 	if booking.Status == "PENDING_PAYMENT" {
 		refundAmount = 0
 	}
+
+	log.Printf("[CANCEL DEBUG] PNR: %s, Total: %.2f, Pct: %.2f%%, Status: %s, Refund: %.2f", 
+		booking.PNR, booking.TotalAmount, refundPct, booking.Status, refundAmount)
 
 	// ── Release seats ─────────────────────────────────────────────────────────
 	seatIDs := extractSeatIDs(booking.Passengers)
@@ -516,7 +622,6 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 		_ = busredis.UnlockSeatsByOwner(ctx, s.rdb, booking.BusInstanceID.String(), seatIDs, userID)
 	}
 
-	// ── Restore inventory ─────────────────────────────────────────────────────
 	if booking.Status == "CONFIRMED" {
 		_ = s.repo.IncrementInventoryOnCancel(
 			booking.BusInstanceID.String(),
@@ -526,27 +631,60 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 		)
 	}
 
-	// ── Reason ───────────────────────────────────────────────────────────────
 	reason := "User requested cancellation"
 	if req != nil && req.Reason != "" {
 		reason = req.Reason
 	}
 
-	// ── Write cancellation record ─────────────────────────────────────────────
 	var policyID *uuid.UUID
 	if policy.ID != (uuid.UUID{}) {
 		pid := policy.ID
 		policyID = &pid
 	}
+	// ── Determine initial refund status ──────────────────────────────────────
+	canInitiateRefund := refundAmount > 0 && s.payClient != nil && booking.PaymentRef != ""
+	initialRefundStatus := "PENDING"
+	if !canInitiateRefund {
+		if refundAmount > 0 {
+			initialRefundStatus = "PENDING"
+		} else {
+			initialRefundStatus = "SUCCESS" // 0 refund is immediately successful/completed
+		}
+	}
+
 	cancelRecord := &model.Cancellation{
 		BookingID:       booking.ID,
 		Reason:          reason,
 		RefundAmount:    refundAmount,
-		RefundStatus:    "PENDING",
+		RefundStatus:    initialRefundStatus,
 		PolicyAppliedID: policyID,
 	}
+
 	if err := s.repo.CreateCancellation(cancelRecord); err != nil {
 		return nil, errors.New("failed to log cancellation: " + err.Error())
+	}
+
+	// ── Trigger gRPC call to payment service for refund ──────────────────────
+	refundStatus := initialRefundStatus
+
+	if canInitiateRefund {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+
+		_, refundErr := s.payClient.CreateRefund(
+			ctx,
+			booking.ID.String(),
+			booking.PaymentRef,
+			refundAmount,
+			booking.Currency,
+			booking.UserID.String(),
+			"requested_by_customer",
+		)
+		if refundErr != nil {
+			log.Printf("[REFUND ERROR] Failed to initiate refund for booking %s: %v", booking.ID.String(), refundErr)
+			_ = s.repo.UpdateCancellationRefundStatus(booking.ID.String(), "FAILED")
+			refundStatus = "FAILED"
+		}
 	}
 
 	// ── Update booking status → CANCELLED ─────────────────────────────────────
@@ -576,24 +714,64 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 		PNR:          booking.PNR,
 		Status:       "CANCELLED",
 		RefundAmount: refundAmount,
-		RefundStatus: "PENDING",
+		RefundStatus: refundStatus,
 	}, nil
 }
-
-// ── GetBookingTicket ──────────────────────────────────────────────────────────
 
 func (s *bookingService) GetBookingTicket(id string, userID string) (*dto.TicketResponse, error) {
 	ticket, err := s.repo.GetETicketByBookingID(id, userID)
 	if err != nil {
 		return nil, errors.New("ticket not found or access denied")
 	}
-	return &dto.TicketResponse{
+
+	booking, err := s.repo.FindBookingByID(id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var passengers []dto.PassengerDetails
+	for _, p := range booking.Passengers {
+		pd := dto.PassengerDetails{
+			ID:            p.ID.String(),
+			FirstName:     p.FirstName,
+			LastName:      p.LastName,
+			PassengerType: p.PassengerType,
+		}
+		if p.Seat != nil {
+			pd.SeatNumber = p.Seat.SeatNumber
+		}
+		passengers = append(passengers, pd)
+	}
+
+	resp := &dto.TicketResponse{
 		BookingID:    ticket.BookingID.String(),
-		PNR:          ticket.Booking.PNR,
+		PNR:          booking.PNR,
 		TicketNumber: ticket.TicketNumber,
 		QRCodeURL:    ticket.QRCodeURL,
 		IssuedAt:     ticket.IssuedAt,
-	}, nil
+		Status:       booking.Status,
+		TotalAmount:  booking.TotalAmount,
+		SeatType:     booking.SeatType,
+		Passengers:   passengers,
+		Bus: &dto.BusDetails{
+			InstanceID:    booking.BusInstanceID.String(),
+			BusNumber:     booking.BusInstance.Bus.BusNumber,
+			Origin:        booking.BusInstance.Bus.OriginStop.Name,
+			Destination:   booking.BusInstance.Bus.DestinationStop.Name,
+			DepartureTime: booking.BusInstance.DepartureAt.Format(time.RFC3339),
+			ArrivalTime:   booking.BusInstance.ArrivalAt.Format(time.RFC3339),
+			OperatorName:  booking.BusInstance.Bus.Operator.Name,
+		},
+	}
+
+	cancellation, err := s.repo.GetCancellationByBookingID(booking.ID.String())
+	if err == nil && cancellation != nil {
+		amount := cancellation.RefundAmount
+		resp.RefundAmount = &amount
+		resp.RefundStatus = cancellation.RefundStatus
+	}
+
+	return resp, nil
 }
 
 func (s *bookingService) ProcessPaymentEvent(evt kafka.PaymentCompletedEvent) {
@@ -609,7 +787,7 @@ func (s *bookingService) ProcessPaymentEvent(evt kafka.PaymentCompletedEvent) {
 	}
 
 	// update to CONFIRMED
-	if err := s.ConfirmBooking(evt.BookingID, evt.UserID); err != nil {
+	if err := s.ConfirmBooking(evt.BookingID, evt.UserID, evt.PaymentID); err != nil {
 		log.Printf("[KAFKA ERROR] ProcessPaymentEvent: Failed to confirm booking %s: %v", evt.BookingID, err)
 		return
 	}
@@ -629,4 +807,30 @@ func (s *bookingService) ProcessPaymentEvent(evt kafka.PaymentCompletedEvent) {
 		_ = s.wsManager.SendToUser(booking.UserID.String(), msg)
 		log.Printf("[WS SUCCESS] Notified user %s of confirmed booking %s", booking.UserID.String(), evt.BookingID)
 	}
+}
+
+func (s *bookingService) ProcessRefundedEvent(evt kafka.PaymentRefundedEvent) {
+	if strings.ToLower(evt.Domain) != "bus" {
+		return
+	}
+
+	if err := s.repo.UpdateCancellationRefundStatus(evt.BookingID, "SUCCESS"); err != nil {
+		log.Printf("[KAFKA ERROR] ProcessRefundedEvent: Failed updating refund status for booking %s: %v", evt.BookingID, err)
+		return
+	}
+
+	log.Printf("[KAFKA INFO] Refund marked SUCCESS for bus booking %s", evt.BookingID)
+}
+
+func (s *bookingService) ProcessRefundFailedEvent(evt kafka.PaymentRefundFailedEvent) {
+	if strings.ToLower(evt.Domain) != "bus" {
+		return
+	}
+
+	if err := s.repo.UpdateCancellationRefundStatus(evt.BookingID, "FAILED"); err != nil {
+		log.Printf("[KAFKA ERROR] ProcessRefundFailedEvent: Failed updating refund status for booking %s: %v", evt.BookingID, err)
+		return
+	}
+
+	log.Printf("[KAFKA INFO] Refund marked FAILED for bus booking %s, reason: %s", evt.BookingID, evt.Reason)
 }

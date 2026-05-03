@@ -95,7 +95,7 @@ func (h *BookingHandler) ConfirmBooking(c fiber.Ctx) error {
 	}
 
 	bookingID := c.Params("bookingId")
-	if err := h.svc.ConfirmBooking(bookingID, userID); err != nil {
+	if err := h.svc.ConfirmBooking(bookingID, userID, ""); err != nil {
 		return utils.Fail(c, fiber.StatusBadRequest, err.Error())
 	}
 

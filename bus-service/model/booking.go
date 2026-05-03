@@ -38,6 +38,7 @@ type Booking struct {
 	BoardingPoint     BoardingPoint      `gorm:"foreignKey:BoardingPointID" json:"boarding_point"`
 	DroppingPoint     DroppingPoint      `gorm:"foreignKey:DroppingPointID" json:"dropping_point"`
 	Passengers        []Passenger        `gorm:"foreignKey:BookingID" json:"passengers"`
+	Cancellation      *Cancellation      `gorm:"foreignKey:BookingID" json:"cancellation"`
 }
 
 type Passenger struct {

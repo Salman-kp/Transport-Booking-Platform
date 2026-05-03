@@ -9,10 +9,12 @@ import (
 )
 
 func RegisterBusRoutes(app *gin.Engine, cfg *config.Config, rdb *redis.Client) {
-	api := app.Group("/api/bus")
+	api := app.Group("/api/buses")
 
-	// health
 	api.GET("/health", proxy.To(cfg.BUS_SERVICE_URL))
+
+	// secure websocket explicitly
+	api.GET("/ws", middleware.JwtMiddleware(cfg), proxy.To(cfg.BUS_SERVICE_URL))
 
 	// ---------------- PUBLIC BUS ROUTES ----------------
 
@@ -34,7 +36,7 @@ func RegisterBusRoutes(app *gin.Engine, cfg *config.Config, rdb *redis.Client) {
 	bookings.Use(middleware.JwtMiddleware(cfg))
 	bookings.Use(middleware.RateLimit(rdb))
 
-	bookings.POST("/", proxy.To(cfg.BUS_SERVICE_URL))
+	bookings.POST("", proxy.To(cfg.BUS_SERVICE_URL))
 	bookings.GET("/user/history", proxy.To(cfg.BUS_SERVICE_URL))
 	bookings.GET("/pnr/:pnr", proxy.To(cfg.BUS_SERVICE_URL))
 	bookings.GET("/:bookingId", proxy.To(cfg.BUS_SERVICE_URL))
