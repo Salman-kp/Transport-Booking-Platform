@@ -11,7 +11,7 @@ func TestGenerateJwtToken(t *testing.T) {
 		JWT_SECRET: "test-secret",
 		JWT_EXPIRY: "60m",
 	}
-	_, err := GenerateToken(cfg, "1", "user")
+	_, err := GenerateToken(cfg, "1", "user", []string{"flight"})
 	if err != nil {
 		t.Fatalf("jwt token creation shouldnt return error, reson: %v", err)
 	}

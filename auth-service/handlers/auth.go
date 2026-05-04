@@ -210,3 +210,32 @@ func Logout() fiber.Handler {
 		return c.Status(200).JSON(fiber.Map{"message": "logout successful"})
 	}
 }
+
+func AssignRole() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		role := c.Get("X-User-Role")
+		if role != "superadmin" {
+			return c.Status(403).JSON(fiber.Map{"error": "forbidden: superadmin only"})
+		}
+
+		var req struct {
+			Email       string   `json:"email" validate:"required,email"`
+			Permissions []string `json:"permissions" validate:"required"`
+		}
+
+		if err := c.Bind().Body(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid JSON body"})
+		}
+
+		if err := Validate.Struct(req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid JSON body"})
+		}
+
+		err := service.AssignRole(req.Email, req.Permissions)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		return c.Status(200).JSON(fiber.Map{"message": "role and permissions assigned successfully"})
+	}
+}

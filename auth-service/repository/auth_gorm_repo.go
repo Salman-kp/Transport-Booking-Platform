@@ -54,3 +54,14 @@ func UpdateUserVerified(email string) error {
 	}
 	return nil
 }
+
+func AssignAdminRole(email string, permissions []string) error {
+	if err := db.DB.Model(&models.User{}).Where("email=?", email).Updates(map[string]interface{}{
+		"role":        "admin",
+		"permissions": permissions,
+	}).Error; err != nil {
+		log.Print(err)
+		return fmt.Errorf("internal server error")
+	}
+	return nil
+}

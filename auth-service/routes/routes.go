@@ -15,4 +15,7 @@ func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
 	auth.Post("/resend-otp", handlers.ResendOtp(cfg, rdb))
 	auth.Post("/login", handlers.Login(cfg))
 	auth.Post("/logout", handlers.Logout())
+
+	// Admin
+	auth.Post("/admin/assign-role", handlers.AssignRole())
 }

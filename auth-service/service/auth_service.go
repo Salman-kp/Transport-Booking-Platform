@@ -128,10 +128,18 @@ func Login(cfg *config.Config, email, password string) (string, error) {
 		return "", domainerrors.InvalidEmailOrPassword
 	}
 
-	token, err := utils.GenerateToken(cfg, user.ID.String(), user.Role)
+	token, err := utils.GenerateToken(cfg, user.ID.String(), user.Role, user.Permissions)
 	if err != nil {
 		return "", errors.New("internal server error")
 	}
 
 	return token, nil
+}
+
+func AssignRole(email string, permissions []string) error {
+	_, err := repository.FindUserByEmail(email)
+	if err != nil {
+		return err
+	}
+	return repository.AssignAdminRole(email, permissions)
 }
