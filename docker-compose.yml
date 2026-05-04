@@ -67,43 +67,43 @@ services:
     depends_on:
       - redis
 
-  # flight-service:
-  #   build:
-  #     context: ./flight-service
-  #     dockerfile: Dockerfile
-  #   expose:
-  #     - 8084
-  #   env_file:
-  #     - ./flight-service/.env
-  #   environment:
-  #     DB_URL: ${FLIGHT_DB}
-  #     RUN_SEED_ON_BOOT: "true"
-  #     # REDIS_HOST: redis
-  #     # REDIS_PORT: 6379   
-  #     REDIS_URL: redis:6379
-  #     KAFKA_BROKERS: redpanda:9092
-  #     PAYMENT_SERVICE_GRPC_URL: payment-service:50051
-  #   depends_on:
-  #     - redis
-  #     - redpanda
+  flight-service:
+    build:
+      context: ./flight-service
+      dockerfile: Dockerfile
+    expose:
+      - 8084
+    env_file:
+      - ./flight-service/.env
+    environment:
+      DB_URL: ${FLIGHT_DB}
+      RUN_SEED_ON_BOOT: "true"
+      # REDIS_HOST: redis
+      # REDIS_PORT: 6379   
+      REDIS_URL: redis:6379
+      KAFKA_BROKERS: redpanda:9092
+      PAYMENT_SERVICE_GRPC_URL: payment-service:50051
+    depends_on:
+      - redis
+      - redpanda
 
-  # train-service:
-  #   build:
-  #     context: ./train-service
-  #     dockerfile: Dockerfile
-  #   expose:
-  #     - 8082
-  #   env_file:
-  #     - ./train-service/.env
-  #   environment:
-  #     DB_URL: ${TRAIN_DB}
-  #     REDIS_HOST: redis
-  #     REDIS_PORT: 6379
-  #     KAFKA_BROKERS: redpanda:9092
+  train-service:
+    build:
+      context: ./train-service
+      dockerfile: Dockerfile
+    expose:
+      - 8082
+    env_file:
+      - ./train-service/.env
+    environment:
+      DB_URL: ${TRAIN_DB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BROKERS: redpanda:9092
 
-  #   depends_on:
-  #     - redis
-  #     - redpanda
+    depends_on:
+      - redis
+      - redpanda
 
   bus-service:
     build:
