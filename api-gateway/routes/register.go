@@ -43,4 +43,10 @@ func Register(app *gin.Engine, cfg *config.Config, rdb *redis.Client) {
 		middleware.RateLimit(rdb),
 		proxy.To(cfg.AUTH_SERVICE_URL),
 	)
+
+	// Admin protected routes
+	auth.POST("/admin/assign-role",
+		middleware.JwtMiddleware(cfg),
+		proxy.To(cfg.AUTH_SERVICE_URL),
+	)
 }

@@ -17,7 +17,7 @@ func SetupAdminRoutes(app *fiber.App, db *gorm.DB) {
 	admin := app.Group("/api/flights/admin")
 
 	// Global Admin Protection
-	admin.Use(middlewares.AdminMiddleware)
+	admin.Use(middlewares.RequirePermission("flight"))
 
 	// Booking Management
 	admin.Get("/bookings", adminHandler.GetAllBookings)

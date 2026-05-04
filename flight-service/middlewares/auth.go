@@ -2,21 +2,39 @@ package middlewares
 
 import (
 	"log"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
-func AdminMiddleware(c fiber.Ctx) error {
-	roleStr := c.Get("X-User-Role")
+func RequirePermission(requiredPermission string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		roleStr := c.Get("X-User-Role")
 
-	if roleStr != "admin" {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "Forbidden: Requires admin privileges",
-		})
+		if roleStr == "superadmin" {
+			return c.Next()
+		}
+
+		permissionsHeader := c.Get("X-User-Permissions")
+		permissions := strings.Split(permissionsHeader, ",")
+
+		hasPermission := false
+		for _, p := range permissions {
+			if strings.TrimSpace(p) == requiredPermission {
+				hasPermission = true
+				break
+			}
+		}
+
+		if !hasPermission {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Forbidden: Insufficient permissions",
+			})
+		}
+
+		return c.Next()
 	}
-
-	return c.Next()
 }
 
 func AuthMiddleware(c fiber.Ctx) error {
