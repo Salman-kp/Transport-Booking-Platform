@@ -9,8 +9,9 @@ import (
 )
 
 type Claims struct {
-	UserID string
-	Role   string
+	UserID      string   `json:"user_id"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions"`
 	jwt.RegisteredClaims
 }
 
@@ -54,6 +55,7 @@ func JwtMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		c.Request.Header.Set("X-User-ID", claims.UserID)
 		c.Request.Header.Set("X-User-Role", claims.Role)
+		c.Request.Header.Set("X-User-Permissions", strings.Join(claims.Permissions, ","))
 
 		// for ratelimit
 		c.Set("userID", claims.UserID)
