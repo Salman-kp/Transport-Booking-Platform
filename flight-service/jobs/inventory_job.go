@@ -84,6 +84,8 @@ func generateForDate(db *gorm.DB, flight models.Flight, targetDate time.Time) bo
 		Status:               models.SCHEDULED,
 		AvailableEconomy:     0,
 		AvailableBusiness:    0,
+		BasePriceEconomy:     5000.0,
+		CurrentPriceEconomy:  5000.0,
 		BasePriceBusiness:    15000.0,
 		CurrentPriceBusiness: 15000.0,
 	}

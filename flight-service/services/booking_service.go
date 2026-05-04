@@ -56,14 +56,19 @@ func (s *BookingService) CreateBooking(userID string, req *dto.CreateBookingRequ
 		return nil, errors.New("mandatory flight or fare ID missing")
 	}
 
-	flightInstance, err := s.repo.GetFlightInstanceByID(req.FlightInstanceID)
+	_, err := s.repo.GetFlightInstanceByID(req.FlightInstanceID)
 	if err != nil {
 		return nil, errors.New("invalid flight instance")
 	}
 
-	_, err = s.repo.GetFareTypeByID(req.FareTypeID)
+	fareType, err := s.repo.GetFareTypeByID(req.FareTypeID)
 	if err != nil {
 		return nil, errors.New("invalid fare type")
+	}
+
+	// Validate the fare type belongs to the requested flight instance
+	if fareType.FlightInstanceID.String() != req.FlightInstanceID {
+		return nil, errors.New("fare type does not belong to this flight instance")
 	}
 
 	if len(req.Passengers) > 9 {
@@ -74,12 +79,8 @@ func (s *BookingService) CreateBooking(userID string, req *dto.CreateBookingRequ
 	fiId, _ := uuid.Parse(req.FlightInstanceID)
 	ftId, _ := uuid.Parse(req.FareTypeID)
 
-	var baseFare float64 = 0
-	if req.SeatClass == "BUSINESS" {
-		baseFare = flightInstance.CurrentPriceBusiness
-	} else {
-		baseFare = flightInstance.CurrentPriceEconomy
-	}
+	// Use the fare type's price as the source of truth for pricing
+	baseFare := fareType.Price
 
 	totalBase := baseFare * float64(len(req.Passengers))
 
@@ -524,19 +525,27 @@ func (s *BookingService) calculateRefundAmount(booking *models.Booking) float64 
 		return 0
 	}
 
-	// Non-refundable fares are not eligible for refund.
+	now := time.Now().UTC()
+	departure := booking.FlightInstance.DepartureAt.UTC()
+	hoursLeft := departure.Sub(now).Hours()
+	refundPct := 0.0
+
+	var hoursSinceConfirmed float64 = 999999
+	if booking.ConfirmedAt != nil {
+		hoursSinceConfirmed = now.Sub(booking.ConfirmedAt.UTC()).Hours()
+	}
+
+	// 2-hour free cancellation grace period overrides non-refundable flag
+	if hoursSinceConfirmed <= 2.0 {
+		return booking.TotalAmount
+	}
+
+	// Non-refundable fares are not eligible for refund outside grace period.
 	if !booking.FareType.IsRefundable {
 		return 0
 	}
 
-	hoursLeft := time.Until(booking.FlightInstance.DepartureAt).Hours()
-	refundPct := 0.0
-
-	if booking.ConfirmedAt != nil && time.Since(*booking.ConfirmedAt) <= 2*time.Hour && hoursLeft > 24 {
-		refundPct = 100.0
-	} else if hoursLeft >= 72 {
-		refundPct = 90.0
-	} else if hoursLeft >= 24 {
+	if hoursLeft >= 72 {
 		refundPct = 60.0
 	} else if hoursLeft >= 4 {
 		refundPct = 25.0
