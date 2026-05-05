@@ -42,6 +42,7 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 		// Enforce forward direction: boarding must come before dropping in route sequence
 		Where("bp.sequence_order < dp.sequence_order").
 		Where("DATE(bus_instances.travel_date) = ?", filter.TravelDate).
+		Where("bus_instances.status = ?", "SCHEDULED").
 		// Ensure the bus has at least one seat marked as available in the seats table
 		Where("EXISTS (SELECT 1 FROM seats s WHERE s.bus_instance_id = bus_instances.id AND s.is_available = true)").
 		// Double check via BusInstance availability counts
@@ -115,11 +116,12 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 	// Unified Sorting Logic
 	switch filter.SortBy {
 	case "price":
-		if filter.SeatType == "sleeper" {
+		switch filter.SeatType {
+		case "sleeper":
 			query = query.Order("bus_instances.current_price_sleeper ASC")
-		} else if filter.SeatType == "semi_sleeper" {
+		case "semi_sleeper":
 			query = query.Order("bus_instances.current_price_semi_sleeper ASC")
-		} else {
+		default:
 			query = query.Order("bus_instances.current_price_seater ASC")
 		}
 	case "duration":

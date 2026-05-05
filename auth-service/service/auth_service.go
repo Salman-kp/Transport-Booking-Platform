@@ -8,6 +8,7 @@ import (
 
 	"github.com/junaid9001/tripneo/auth-service/config"
 	domainerrors "github.com/junaid9001/tripneo/auth-service/domain_errors"
+	"github.com/junaid9001/tripneo/auth-service/models"
 	"github.com/junaid9001/tripneo/auth-service/repository"
 	"github.com/junaid9001/tripneo/auth-service/utils"
 	"github.com/redis/go-redis/v9"
@@ -108,38 +109,38 @@ func ResendOtp(ctx context.Context, cfg *config.Config, rdb *redis.Client, email
 	return nil
 }
 
-func Login(cfg *config.Config, email, password string) (string, error) {
+func Login(cfg *config.Config, email, password string) (string, *models.User, error) {
 	user, err := repository.FindUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, domainerrors.EmailNotFound) {
 			//devlog
 			log.Print("email mismatch or not found")
-			return "", domainerrors.EmailNotFound
+			return "", nil, domainerrors.EmailNotFound
 		}
-		return "", errors.New("internal server error")
+		return "", nil, errors.New("internal server error")
 	}
 
 	if user.IsVerified != true {
-		return "", domainerrors.VerifyEmailBeforeLoggingIN
+		return "", nil, domainerrors.VerifyEmailBeforeLoggingIN
 	}
 
 	err = utils.ValidatePassword(user.PasswordHash, password)
 	if err != nil {
-		return "", domainerrors.InvalidEmailOrPassword
+		return "", nil, domainerrors.InvalidEmailOrPassword
 	}
 
 	token, err := utils.GenerateToken(cfg, user.ID.String(), user.Role, user.Permissions)
 	if err != nil {
-		return "", errors.New("internal server error")
+		return "", nil, errors.New("internal server error")
 	}
 
-	return token, nil
+	return token, user, nil
 }
 
-func AssignRole(email string, permissions []string) error {
+func AssignRole(email string, role string, permissions []string) error {
 	_, err := repository.FindUserByEmail(email)
 	if err != nil {
 		return err
 	}
-	return repository.AssignAdminRole(email, permissions)
+	return repository.AssignRole(email, role, permissions)
 }
