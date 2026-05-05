@@ -80,6 +80,8 @@ func main() {
 
 	routes.SetupBusRoutes(app, db.DB, cfg)
 	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager, cfg)
+	routes.SetupAdminRoutes(app, db.DB)
+	routes.SetupOperatorRoutes(app, db.DB)
 
 	// ── Background jobs ────────────
 	c := cron.New()

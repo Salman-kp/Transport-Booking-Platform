@@ -160,7 +160,7 @@ func Login(cfg *config.Config) fiber.Handler {
 				"error": "invalid JSON body",
 			})
 		}
-		token, err := service.Login(cfg, req.Email, req.Password)
+		token, user, err := service.Login(cfg, req.Email, req.Password)
 		if err != nil {
 			if errors.Is(err, domainerrors.EmailNotFound) {
 
@@ -191,6 +191,10 @@ func Login(cfg *config.Config) fiber.Handler {
 		return c.Status(http.StatusOK).JSON(fiber.Map{
 			"message": "login successful",
 			"token":   token,
+			"user": fiber.Map{
+				"email": user.Email,
+				"role":  user.Role,
+			},
 		})
 
 	}
@@ -220,6 +224,7 @@ func AssignRole() fiber.Handler {
 
 		var req struct {
 			Email       string   `json:"email" validate:"required,email"`
+			Role        string   `json:"role" validate:"required"`
 			Permissions []string `json:"permissions" validate:"required"`
 		}
 
@@ -228,10 +233,10 @@ func AssignRole() fiber.Handler {
 		}
 
 		if err := Validate.Struct(req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "invalid JSON body"})
+			return c.Status(400).JSON(fiber.Map{"error": "invalid request body: missing fields"})
 		}
 
-		err := service.AssignRole(req.Email, req.Permissions)
+		err := service.AssignRole(req.Email, req.Role, req.Permissions)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
