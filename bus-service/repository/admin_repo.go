@@ -21,7 +21,7 @@ type AdminRepository interface {
 	CreateCancellationPolicy(policy *model.CancellationPolicy) error
 	UpdateCancellationPolicy(id uuid.UUID, updates map[string]interface{}) error
 	GetOperatorAnalytics() ([]map[string]interface{}, error)
-	GetUpcomingTrips(limit int) ([]model.BusInstance, error)
+	GetUpcomingTrips(limit, month, year int) ([]model.BusInstance, error)
 	CreateBusType(busType *model.BusType) error
 	GetBusTypes() ([]model.BusType, error)
 	CreateBusStop(busStop *model.BusStop) error
@@ -175,11 +175,11 @@ func (r *adminRepository) GetOperatorAnalytics() ([]map[string]interface{}, erro
 	return results, err
 }
 
-func (r *adminRepository) GetUpcomingTrips(limit int) ([]model.BusInstance, error) {
+func (r *adminRepository) GetUpcomingTrips(limit, month, year int) ([]model.BusInstance, error) {
 	var instances []model.BusInstance
 	err := r.db.Preload("Bus").Preload("Bus.Operator").
 		Preload("Bus.OriginStop").Preload("Bus.DestinationStop").
-		Where("departure_at >= NOW() - INTERVAL '5 days'").
+		Where("EXTRACT(MONTH FROM departure_at) = ? AND EXTRACT(YEAR FROM departure_at) = ?", month, year).
 		Order("departure_at ASC").
 		Limit(limit).
 		Find(&instances).Error
@@ -231,7 +231,31 @@ func (r *adminRepository) GetOperators() ([]model.Operator, error) {
 }
 
 func (r *adminRepository) DeleteBusInstance(id uuid.UUID) error {
-	return r.db.Delete(&model.BusInstance{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Delete associated records first to avoid FK constraint violations
+		if err := tx.Where("bus_instance_id = ?", id).Delete(&model.BoardingPoint{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("bus_instance_id = ?", id).Delete(&model.DroppingPoint{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("bus_instance_id = ?", id).Delete(&model.Seat{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("bus_instance_id = ?", id).Delete(&model.FareType{}).Error; err != nil {
+			return err
+		}
+
+		// 2. Finally delete the instance
+		result := tx.Delete(&model.BusInstance{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("bus instance not found")
+		}
+		return nil
+	})
 }
 
 func (r *adminRepository) UpdateBusInstanceStatus(id uuid.UUID, status string) error {

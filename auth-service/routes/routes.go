@@ -18,4 +18,5 @@ func Register(app *fiber.App, cfg *config.Config, rdb *redis.Client) {
 
 	// Admin
 	auth.Post("/admin/assign-role", handlers.AssignRole())
+	auth.Get("/admin/users", handlers.ListUsers())
 }

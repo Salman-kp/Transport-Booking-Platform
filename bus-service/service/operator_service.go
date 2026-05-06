@@ -2,8 +2,6 @@ package service
 
 import (
 	"errors"
-	"time"
-
 	"github.com/Salman-kp/tripneo/bus-service/dto"
 	"github.com/Salman-kp/tripneo/bus-service/model"
 	"github.com/Salman-kp/tripneo/bus-service/repository"
@@ -12,11 +10,15 @@ import (
 
 type OperatorService interface {
 	RegisterOperator(req dto.RegisterOperatorReq) (*model.Operator, error)
-	GetProfile(operatorID string) (*model.Operator, error)
+	GetProfile(userID string) (map[string]interface{}, error)
 	GetInventory(operatorID string) ([]model.OperatorInventory, error)
-	LoadInventory(operatorID string, req dto.LoadInventoryReq) (*model.OperatorInventory, error)
-	GetInventoryBookings(operatorID, inventoryID string) ([]model.Booking, error)
 	GetAnalytics(operatorID string) (map[string]interface{}, error)
+	GetBookingsByOperator(operatorID string) ([]model.Booking, error)
+	
+	// Trip Instance Management
+	ListInstances(operatorID string) ([]model.BusInstance, error)
+	RemoveInstance(operatorID, instanceID string) error
+	ChangeInstanceStatus(operatorID, instanceID, status string) error
 }
 
 type operatorService struct {
@@ -33,97 +35,75 @@ func (s *operatorService) RegisterOperator(req dto.RegisterOperatorReq) (*model.
 		return nil, errors.New("invalid user_id")
 	}
 
-	// 1. Create the operator
-	op := model.Operator{
-		Name:           req.Name,
-		OperatorCode:   req.OperatorCode,
-		ContactEmail:   req.ContactEmail,
-		ContactPhone:   req.ContactPhone,
-		LogoURL:        req.LogoURL,
-		CommissionRate: req.CommissionRate,
-		Status:         "ACTIVE", // Auto-activate since admin is creating it
-	}
+	var op model.Operator
+	err = s.repo.WithTransaction(func(repo repository.OperatorRepository) error {
+		// 1. Create the operator
+		op = model.Operator{
+			Name:           req.Name,
+			OperatorCode:   req.OperatorCode,
+			ContactEmail:   req.ContactEmail,
+			ContactPhone:   req.ContactPhone,
+			LogoURL:        req.LogoURL,
+			CommissionRate: req.CommissionRate,
+			Status:         "ACTIVE",
+		}
 
-	if err := s.repo.CreateOperator(&op); err != nil {
-		return nil, err
-	}
+		if err := repo.CreateOperator(&op); err != nil {
+			return err
+		}
 
-	// 2. Link user to operator
-	opUser := model.OperatorUser{
-		UserID:     userID,
-		OperatorID: op.ID,
-		Role:       "MANAGER",
-		Status:     "ACTIVE",
-	}
+		// 2. Link user to operator
+		opUser := model.OperatorUser{
+			UserID:     userID,
+			OperatorID: op.ID,
+			Role:       "MANAGER",
+			Status:     "ACTIVE",
+		}
 
-	if err := s.repo.CreateOperatorUser(&opUser); err != nil {
+		return repo.CreateOperatorUser(&opUser)
+	})
+
+	if err != nil {
 		return nil, err
 	}
 
 	return &op, nil
 }
 
-func (s *operatorService) GetProfile(operatorID string) (*model.Operator, error) {
-	return s.repo.FindOperatorByID(operatorID)
+func (s *operatorService) GetProfile(userID string) (map[string]interface{}, error) {
+	opUser, op, err := s.repo.GetOperatorUserByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	
+	return map[string]interface{}{
+		"operator_user": opUser,
+		"operator":      op,
+	}, nil
 }
 
 func (s *operatorService) GetInventory(operatorID string) ([]model.OperatorInventory, error) {
 	return s.repo.GetInventoryByOperator(operatorID)
 }
 
-func (s *operatorService) LoadInventory(operatorID string, req dto.LoadInventoryReq) (*model.OperatorInventory, error) {
-	opUUID, err := uuid.Parse(operatorID)
-	if err != nil {
-		return nil, errors.New("invalid operator id")
-	}
-
-	busInstanceID, err := uuid.Parse(req.BusInstanceID)
-	if err != nil {
-		return nil, errors.New("invalid bus_instance_id")
-	}
-
-	fareTypeID, err := uuid.Parse(req.FareTypeID)
-	if err != nil {
-		return nil, errors.New("invalid fare_type_id")
-	}
-
-	expiresAt, err := time.Parse(time.RFC3339, req.ExpiresAt)
-	if err != nil {
-		return nil, errors.New("invalid expires_at format, expected RFC3339")
-	}
-
-	// VERIFY OWNERSHIP: Ensure the operator actually owns this bus instance
-	owns, err := s.repo.VerifyBusInstanceOwnership(operatorID, req.BusInstanceID)
-	if err != nil {
-		return nil, err
-	}
-	if !owns {
-		return nil, errors.New("forbidden: you do not own the requested bus instance")
-	}
-
-	inv := model.OperatorInventory{
-		OperatorID:     opUUID,
-		BusInstanceID:  busInstanceID,
-		FareTypeID:     fareTypeID,
-		SeatType:       req.SeatType,
-		QuantityLoaded: req.QuantityLoaded,
-		WholesalePrice: req.WholesalePrice,
-		SellingPrice:   req.SellingPrice,
-		Status:         "ACTIVE",
-		ExpiresAt:      expiresAt,
-	}
-
-	if err := s.repo.LoadInventory(&inv); err != nil {
-		return nil, err
-	}
-
-	return &inv, nil
-}
-
-func (s *operatorService) GetInventoryBookings(operatorID, inventoryID string) ([]model.Booking, error) {
-	return s.repo.GetBookingsByInventory(inventoryID, operatorID)
-}
-
 func (s *operatorService) GetAnalytics(operatorID string) (map[string]interface{}, error) {
 	return s.repo.GetOperatorAnalytics(operatorID)
+}
+
+func (s *operatorService) GetBookingsByOperator(operatorID string) ([]model.Booking, error) {
+	return s.repo.GetBookingsByOperator(operatorID)
+}
+
+// Trip Instance Management
+
+func (s *operatorService) ListInstances(operatorID string) ([]model.BusInstance, error) {
+	return s.repo.GetInstancesByOperator(operatorID)
+}
+
+func (s *operatorService) RemoveInstance(operatorID, instanceID string) error {
+	return s.repo.DeleteBusInstance(operatorID, instanceID)
+}
+
+func (s *operatorService) ChangeInstanceStatus(operatorID, instanceID, status string) error {
+	return s.repo.UpdateInstanceStatus(operatorID, instanceID, status)
 }

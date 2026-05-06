@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/Salman-kp/tripneo/bus-service/model"
 	"github.com/Salman-kp/tripneo/bus-service/pkg/utils"
@@ -139,14 +140,21 @@ func (h *AdminHandler) UpdatePricingRule(c fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	if name, ok := updates["name"].(string); ok && name == "" {
+	if name, ok := updates["name"]; ok && name == "" {
 		return utils.Fail(c, fiber.StatusBadRequest, "name cannot be empty")
 	}
-	if rt, ok := updates["rule_type"].(string); ok && rt == "" {
+	if rt, ok := updates["rule_type"]; ok && rt == "" {
 		return utils.Fail(c, fiber.StatusBadRequest, "rule_type cannot be empty")
 	}
-	if m, ok := updates["multiplier"].(float64); ok && m <= 0 {
-		return utils.Fail(c, fiber.StatusBadRequest, "multiplier must be greater than 0")
+	if m, ok := updates["multiplier"]; ok {
+		switch v := m.(type) {
+		case float64:
+			if v <= 0 {
+				return utils.Fail(c, fiber.StatusBadRequest, "multiplier must be greater than 0")
+			}
+		case string:
+			return utils.Fail(c, fiber.StatusBadRequest, "multiplier must be a number")
+		}
 	}
 
 	if conditions, ok := updates["conditions"]; ok {
@@ -194,7 +202,18 @@ func (h *AdminHandler) GetUpcomingTrips(c fiber.Ctx) error {
 		limit = 1000
 	}
 
-	trips, err := h.service.GetUpcomingTrips(limit)
+	now := time.Now()
+	month, _ := strconv.Atoi(c.Query("month", strconv.Itoa(int(now.Month()))))
+	year, _ := strconv.Atoi(c.Query("year", strconv.Itoa(now.Year())))
+
+	if month < 1 || month > 12 {
+		month = int(now.Month())
+	}
+	if year < 2000 {
+		year = now.Year()
+	}
+
+	trips, err := h.service.GetUpcomingTrips(limit, month, year)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -285,6 +304,16 @@ func (h *AdminHandler) UpdateBusInstanceStatus(c fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
+	validStatuses := map[string]bool{
+		"SCHEDULED": true,
+		"COMPLETED": true,
+		"CANCELLED": true,
+		"DELAYED":   true,
+	}
+	if !validStatuses[req.Status] {
+		return utils.Fail(c, fiber.StatusBadRequest, "Invalid status. Allowed values: SCHEDULED, COMPLETED, CANCELLED, DELAYED")
+	}
+
 	if err := h.service.UpdateBusInstanceStatus(id, req.Status); err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -327,17 +356,41 @@ func (h *AdminHandler) UpdateCancellationPolicy(c fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	if name, ok := updates["name"].(string); ok && name == "" {
+	if name, ok := updates["name"]; ok && name == "" {
 		return utils.Fail(c, fiber.StatusBadRequest, "name cannot be empty")
 	}
-	if hours, ok := updates["hours_before_departure"].(float64); ok && hours < 0 {
-		return utils.Fail(c, fiber.StatusBadRequest, "hours_before_departure cannot be negative")
+
+	if hours, ok := updates["hours_before_departure"]; ok {
+		switch v := hours.(type) {
+		case float64:
+			if v < 0 {
+				return utils.Fail(c, fiber.StatusBadRequest, "hours_before_departure cannot be negative")
+			}
+		case string:
+			return utils.Fail(c, fiber.StatusBadRequest, "hours_before_departure must be a number")
+		}
 	}
-	if refund, ok := updates["refund_percentage"].(float64); ok && (refund < 0 || refund > 100) {
-		return utils.Fail(c, fiber.StatusBadRequest, "refund_percentage must be between 0 and 100")
+
+	if refund, ok := updates["refund_percentage"]; ok {
+		switch v := refund.(type) {
+		case float64:
+			if v < 0 || v > 100 {
+				return utils.Fail(c, fiber.StatusBadRequest, "refund_percentage must be between 0 and 100")
+			}
+		case string:
+			return utils.Fail(c, fiber.StatusBadRequest, "refund_percentage must be a number")
+		}
 	}
-	if fee, ok := updates["cancellation_fee"].(float64); ok && fee < 0 {
-		return utils.Fail(c, fiber.StatusBadRequest, "cancellation_fee cannot be negative")
+
+	if fee, ok := updates["cancellation_fee"]; ok {
+		switch v := fee.(type) {
+		case float64:
+			if v < 0 {
+				return utils.Fail(c, fiber.StatusBadRequest, "cancellation_fee cannot be negative")
+			}
+		case string:
+			return utils.Fail(c, fiber.StatusBadRequest, "cancellation_fee must be a number")
+		}
 	}
 
 	if err := h.service.UpdateCancellationPolicy(id, updates); err != nil {
