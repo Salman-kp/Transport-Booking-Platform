@@ -23,7 +23,7 @@ type AdminService interface {
 	CreateCancellationPolicy(policy *model.CancellationPolicy) error
 	UpdateCancellationPolicy(id uuid.UUID, updates map[string]interface{}) error
 	GetOperatorAnalytics() ([]map[string]interface{}, error)
-	GetUpcomingTrips(limit int) ([]model.BusInstance, error)
+	GetUpcomingTrips(limit, month, year int) ([]model.BusInstance, error)
 	CreateBusType(busType *model.BusType) error
 	GetBusTypes() ([]model.BusType, error)
 	CreateBusStop(busStop *model.BusStop) error
@@ -136,6 +136,15 @@ func (s *adminService) UpdateBus(id uuid.UUID, updates map[string]interface{}) e
 		}
 	}
 
+	if val, ok := updates["duration_minutes"]; ok {
+		switch v := val.(type) {
+		case float64:
+			if v <= 0 { return errors.New("duration_minutes must be greater than 0") }
+		case string:
+			return errors.New("duration_minutes must be a number")
+		}
+	}
+
 	return s.repo.UpdateBus(id, updates)
 }
 
@@ -210,8 +219,8 @@ func (s *adminService) GetOperatorAnalytics() ([]map[string]interface{}, error) 
 	return s.repo.GetOperatorAnalytics()
 }
 
-func (s *adminService) GetUpcomingTrips(limit int) ([]model.BusInstance, error) {
-	return s.repo.GetUpcomingTrips(limit)
+func (s *adminService) GetUpcomingTrips(limit, month, year int) ([]model.BusInstance, error) {
+	return s.repo.GetUpcomingTrips(limit, month, year)
 }
 
 func (s *adminService) CreateBusType(busType *model.BusType) error {
@@ -239,6 +248,9 @@ func (s *adminService) GetBusStops() ([]model.BusStop, error) {
 func (s *adminService) CreateOperator(operator *model.Operator) error {
 	if operator.Name == "" || operator.ContactEmail == "" {
 		return errors.New("operator name and email are required")
+	}
+	if operator.CommissionRate < 0 || operator.CommissionRate > 100 {
+		return errors.New("commission rate must be between 0 and 100")
 	}
 	return s.repo.CreateOperator(operator)
 }

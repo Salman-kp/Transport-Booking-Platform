@@ -244,3 +244,37 @@ func AssignRole() fiber.Handler {
 		return c.Status(200).JSON(fiber.Map{"message": "role and permissions assigned successfully"})
 	}
 }
+
+func ListUsers() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		role := c.Get("X-User-Role")
+		if role != "superadmin" && role != "admin" {
+			return c.Status(403).JSON(fiber.Map{"error": "forbidden: admin only"})
+		}
+
+		users, err := service.ListUsers()
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		type UserDTO struct {
+			ID         string `json:"id"`
+			Name       string `json:"name"`
+			Email      string `json:"email"`
+			Role       string `json:"role"`
+			IsVerified bool   `json:"is_verified"`
+		}
+		dtos := make([]UserDTO, 0, len(users))
+		for _, u := range users {
+			dtos = append(dtos, UserDTO{
+				ID:         u.ID.String(),
+				Name:       u.Name,
+				Email:      u.Email,
+				Role:       u.Role,
+				IsVerified: u.IsVerified,
+			})
+		}
+
+		return c.Status(200).JSON(fiber.Map{"users": dtos})
+	}
+}

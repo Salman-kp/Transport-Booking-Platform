@@ -51,5 +51,7 @@ type OperatorInventory struct {
 	CreatedAt      time.Time `gorm:"default:now()" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"default:now()" json:"updated_at"`
 
-	Operator Operator `gorm:"foreignKey:OperatorID" json:"operator"`
+	Operator    Operator    `gorm:"foreignKey:OperatorID" json:"operator"`
+	BusInstance BusInstance `gorm:"foreignKey:BusInstanceID" json:"bus_instance"`
+	FareType    FareType    `gorm:"foreignKey:FareTypeID" json:"fare_type"`
 }

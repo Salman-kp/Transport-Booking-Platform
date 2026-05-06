@@ -88,12 +88,16 @@ func main() {
 	c.AddFunc("0 0 * * *", func() {
 		jobs.GenerateUpcomingInventory(db.DB)
 	})
+	c.AddFunc("*/10 * * * *", func() {
+		jobs.UpdatePricesBasedOnRules(db.DB)
+	})
 	c.AddFunc("*/5 * * * *", func() {
 		jobs.CleanupExpiredBookings(db.DB)
 	})
 	c.Start()
 
 	go jobs.GenerateUpcomingInventory(db.DB)
+	go jobs.UpdatePricesBasedOnRules(db.DB) // Run once on boot too
 
 	log.Printf("🚌 Bus Service running on http://localhost:%s", cfg.PORT)
 	app.Listen(":" + cfg.PORT)

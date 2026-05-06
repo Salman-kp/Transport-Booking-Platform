@@ -56,12 +56,21 @@ func UpdateUserVerified(email string) error {
 }
 
 func AssignRole(email string, role string, permissions []string) error {
-	if err := db.DB.Model(&models.User{}).Where("email=?", email).Updates(map[string]interface{}{
-		"role":        role,
-		"permissions": permissions,
+	if err := db.DB.Model(&models.User{}).Where("email=?", email).Updates(&models.User{
+		Role:        role,
+		Permissions: permissions,
 	}).Error; err != nil {
 		log.Print(err)
 		return fmt.Errorf("internal server error")
 	}
 	return nil
+}
+
+func ListUsers() ([]models.User, error) {
+	var users []models.User
+	if err := db.DB.Find(&users).Error; err != nil {
+		log.Print(err)
+		return nil, fmt.Errorf("internal server error")
+	}
+	return users, nil
 }
