@@ -43,4 +43,16 @@ func RegisterBusRoutes(app *gin.Engine, cfg *config.Config, rdb *redis.Client) {
 	bookings.POST("/:bookingId/confirm", proxy.To(cfg.BUS_SERVICE_URL))
 	bookings.POST("/:bookingId/cancel", proxy.To(cfg.BUS_SERVICE_URL))
 	bookings.GET("/:bookingId/ticket", proxy.To(cfg.BUS_SERVICE_URL))
+
+	// admin routes
+	admin := api.Group("/admin",
+		middleware.JwtMiddleware(cfg),
+	)
+	admin.Any("/*any", proxy.To(cfg.BUS_SERVICE_URL))
+
+	// operator routes
+	operators := api.Group("/operators",
+		middleware.JwtMiddleware(cfg),
+	)
+	operators.Any("/*any", proxy.To(cfg.BUS_SERVICE_URL))
 }

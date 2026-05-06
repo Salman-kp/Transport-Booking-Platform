@@ -80,11 +80,16 @@ func main() {
 
 	routes.SetupBusRoutes(app, db.DB, cfg)
 	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager, cfg)
+	routes.SetupAdminRoutes(app, db.DB)
+	routes.SetupOperatorRoutes(app, db.DB)
 
 	// ── Background jobs ────────────
 	c := cron.New()
 	c.AddFunc("0 0 * * *", func() {
 		jobs.GenerateUpcomingInventory(db.DB)
+	})
+	c.AddFunc("*/10 * * * *", func() {
+		jobs.UpdatePricesBasedOnRules(db.DB)
 	})
 	c.AddFunc("*/5 * * * *", func() {
 		jobs.CleanupExpiredBookings(db.DB)
@@ -92,6 +97,7 @@ func main() {
 	c.Start()
 
 	go jobs.GenerateUpcomingInventory(db.DB)
+	go jobs.UpdatePricesBasedOnRules(db.DB) // Run once on boot too
 
 	log.Printf("🚌 Bus Service running on http://localhost:%s", cfg.PORT)
 	app.Listen(":" + cfg.PORT)

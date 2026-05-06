@@ -87,23 +87,23 @@ services:
       - redis
       - redpanda
 
-  train-service:
-    build:
-      context: ./train-service
-      dockerfile: Dockerfile
-    expose:
-      - 8082
-    env_file:
-      - ./train-service/.env
-    environment:
-      DB_URL: ${TRAIN_DB}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      KAFKA_BROKERS: redpanda:9092
+  # train-service:
+  #   build:
+  #     context: ./train-service
+  #     dockerfile: Dockerfile
+  #   expose:
+  #     - 8082
+  #   env_file:
+  #     - ./train-service/.env
+  #   environment:
+  #     DB_URL: ${TRAIN_DB}
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     KAFKA_BROKERS: redpanda:9092
 
-    depends_on:
-      - redis
-      - redpanda
+  #   depends_on:
+  #     - redis
+  #     - redpanda
 
   bus-service:
     build:
