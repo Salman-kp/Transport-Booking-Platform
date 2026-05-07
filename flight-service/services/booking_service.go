@@ -10,14 +10,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/junaid9001/tripneo/flight-service/dto"
+	"github.com/junaid9001/tripneo/flight-service/email"
 	"github.com/junaid9001/tripneo/flight-service/kafka"
 	"github.com/junaid9001/tripneo/flight-service/models"
 	"github.com/junaid9001/tripneo/flight-service/redis"
@@ -33,15 +36,19 @@ type BookingService struct {
 	qrPublicBaseURL string
 	qrSigningSecret string
 	razorpayChan    chan string // used to pass order IDs back to DTO mapper
+	emailClient     *email.ResendClient
+	authServiceURL  string
 }
 
-func NewBookingService(repo *repository.BookingRepository, payClient *rpc.PaymentClient, wsManager *ws.Manager, qrPublicBaseURL string, qrSigningSecret string) *BookingService {
+func NewBookingService(repo *repository.BookingRepository, payClient *rpc.PaymentClient, wsManager *ws.Manager, qrPublicBaseURL string, qrSigningSecret string, emailClient *email.ResendClient, authServiceURL string) *BookingService {
 	return &BookingService{
 		repo:            repo,
 		payClient:       payClient,
 		wsManager:       wsManager,
 		qrPublicBaseURL: qrPublicBaseURL,
 		qrSigningSecret: qrSigningSecret,
+		emailClient:     emailClient,
+		authServiceURL:  authServiceURL,
 	}
 }
 
@@ -661,6 +668,9 @@ func (s *BookingService) ProcessPaymentEvent(evt kafka.PaymentCompletedEvent) {
 		_ = s.wsManager.SendToUser(booking.UserID.String(), msg)
 		log.Printf("[WS SUCCESS] Notified user %s of confirmed booking %s", booking.UserID.String(), evt.BookingID)
 	}
+
+	// send confirmation email asynchronously
+	go s.sendConfirmationEmail(booking)
 }
 
 func (s *BookingService) ProcessRefundedEvent(evt kafka.PaymentRefundedEvent) {
@@ -687,4 +697,77 @@ func (s *BookingService) ProcessRefundFailedEvent(evt kafka.PaymentRefundFailedE
 	}
 
 	log.Printf("[KAFKA INFO] Refund marked FAILED for flight booking %s, reason: %s", evt.BookingID, evt.Reason)
+}
+
+func (s *BookingService) sendConfirmationEmail(booking *models.Booking) {
+	if s.emailClient == nil {
+		return
+	}
+
+	userEmail, userName, err := s.fetchUserEmail(booking.UserID.String())
+	if err != nil {
+		log.Printf("[EMAIL ERROR] Failed to fetch user email for %s: %v", booking.UserID.String(), err)
+		return
+	}
+
+	var passengerNames []string
+	for _, p := range booking.Passengers {
+		passengerNames = append(passengerNames, p.FirstName+" "+p.LastName)
+	}
+
+	departureTime := ""
+	arrivalTime := ""
+	if !booking.FlightInstance.DepartureAt.IsZero() {
+		departureTime = booking.FlightInstance.DepartureAt.Format("02 Jan 2006, 15:04")
+	}
+	if !booking.FlightInstance.ArrivalAt.IsZero() {
+		arrivalTime = booking.FlightInstance.ArrivalAt.Format("02 Jan 2006, 15:04")
+	}
+
+	data := email.BookingEmailData{
+		ToEmail:       userEmail,
+		ToName:        userName,
+		PNR:           booking.PNR,
+		FlightNumber:  booking.FlightInstance.Flight.FlightNumber,
+		Origin:        booking.FlightInstance.Flight.OriginAirport.IataCode,
+		Destination:   booking.FlightInstance.Flight.DestinationAirport.IataCode,
+		DepartureTime: departureTime,
+		ArrivalTime:   arrivalTime,
+		SeatClass:     booking.SeatClass,
+		TotalAmount:   booking.TotalAmount,
+		Currency:      booking.Currency,
+		Passengers:    passengerNames,
+	}
+
+	if err := s.emailClient.SendBookingConfirmation(data); err != nil {
+		log.Printf("[EMAIL ERROR] Failed to send confirmation for PNR %s: %v", booking.PNR, err)
+	}
+}
+
+func (s *BookingService) fetchUserEmail(userID string) (string, string, error) {
+	if s.authServiceURL == "" {
+		return "", "", fmt.Errorf("AUTH_SERVICE_URL not configured")
+	}
+
+	url := fmt.Sprintf("%s/api/auth/internal/user/%s", s.authServiceURL, userID)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to reach auth-service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", "", fmt.Errorf("auth-service returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", "", fmt.Errorf("failed to decode auth response: %w", err)
+	}
+
+	return result.Email, result.Name, nil
 }

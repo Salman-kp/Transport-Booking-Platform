@@ -16,6 +16,9 @@ type Config struct {
 	AVIATIONSTACK_API_KEY    string
 	QR_PUBLIC_BASE_URL       string
 	QR_SIGNING_SECRET        string
+	AUTH_SERVICE_URL         string
+	RESEND_API_KEY           string
+	RESEND_FROM_ADDRESS      string
 }
 
 func LoadConfig() *Config {
@@ -30,6 +33,9 @@ func LoadConfig() *Config {
 		AVIATIONSTACK_API_KEY:    os.Getenv("AVIATIONSTACK_API_KEY"),
 		QR_PUBLIC_BASE_URL:       os.Getenv("QR_PUBLIC_BASE_URL"),
 		QR_SIGNING_SECRET:        os.Getenv("QR_SIGNING_SECRET"),
+		AUTH_SERVICE_URL:         os.Getenv("AUTH_SERVICE_URL"),
+		RESEND_API_KEY:           os.Getenv("RESEND_API_KEY"),
+		RESEND_FROM_ADDRESS:      os.Getenv("RESEND_FROM_ADDRESS"),
 	}
 	if config.PAYMENT_SERVICE_GRPC_URL == "" {
 		config.PAYMENT_SERVICE_GRPC_URL = "localhost:50051"

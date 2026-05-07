@@ -47,6 +47,17 @@ func FindUserByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
+func FindUserByID(id string) (*models.User, error) {
+	var user models.User
+	if err := db.DB.Where("id = ?", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domainerrors.EmailNotFound
+		}
+		return nil, fmt.Errorf("internal server error")
+	}
+	return &user, nil
+}
+
 func UpdateUserVerified(email string) error {
 	if err := db.DB.Model(&models.User{}).Where("email=?", email).Update("is_verified", true).Error; err != nil {
 		log.Print(err)
