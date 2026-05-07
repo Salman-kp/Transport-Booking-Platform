@@ -1,12 +1,12 @@
-name: auth-service-cicd
+name: bus-service-cicd
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'auth-service/**'
-      - '.github/workflows/auth-service-cicd.yml'
+      - 'bus-service/**'
+      - '.github/workflows/bus-service-cicd.yml'
 
 jobs:
   build-test-deploy:
@@ -14,7 +14,7 @@ jobs:
     if: github.repository_owner == 'junaid9001'
     defaults:
       run:
-        working-directory: ./auth-service
+        working-directory: ./bus-service
 
     steps:
       - name: Checkout Code
@@ -44,7 +44,7 @@ jobs:
       - name: Build and Push to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: tripneo/auth-service
+          ECR_REPOSITORY: tripneo/bus-service
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -53,9 +53,9 @@ jobs:
       - name: Deploy to EKS
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: tripneo/auth-service
+          ECR_REPOSITORY: tripneo/bus-service
           IMAGE_TAG: ${{ github.sha }}
         run: |
           aws eks update-kubeconfig --name tripneo-cluster --region ap-south-1
-          kubectl set image deployment/auth-service-deployment auth-service=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          kubectl rollout status deployment/auth-service-deployment --timeout=120s
+          kubectl set image deployment/bus-service-deployment bus-service=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          kubectl rollout status deployment/bus-service-deployment --timeout=120s
