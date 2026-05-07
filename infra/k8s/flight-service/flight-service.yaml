@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flight-service-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flight-service
+  template:
+    metadata:
+      labels:
+        app: flight-service
+    spec:
+      containers:
+        - name: flight-service
+          image: 675789572615.dkr.ecr.ap-south-1.amazonaws.com/tripneo/flight-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - secretRef:
+                name: flight-service-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flight-service
+spec:
+  selector:
+    app: flight-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+  type: ClusterIP

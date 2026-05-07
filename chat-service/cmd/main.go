@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
 
+	"github.com/junaid9001/tripneo/chat-service/bot"
 	"github.com/junaid9001/tripneo/chat-service/config"
 	"github.com/junaid9001/tripneo/chat-service/db"
 	"github.com/junaid9001/tripneo/chat-service/models"
@@ -92,6 +93,13 @@ func main() {
 
 		return c.JSON(fiber.Map{"success": true, "message": msg})
 	})
+
+	// 4. WhatsApp Cloud API Webhooks (Meta)
+	webhooks := app.Group("/api/webhooks")
+	// Meta hits this GET route once to verify you own the server
+	webhooks.Get("/whatsapp", bot.HandleMetaWebhookVerification)
+	// Meta posts all user messages to this POST route
+	webhooks.Post("/whatsapp", bot.HandleMetaMessage)
 
 	log.Printf("Chat service running on port %s", cfg.Port)
 	log.Fatal(app.Listen(":" + cfg.Port))

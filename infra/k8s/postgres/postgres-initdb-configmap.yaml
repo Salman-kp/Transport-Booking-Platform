@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb-config
+data:
+  01-create-databases.sql: |
+    SELECT 'CREATE DATABASE tripneo_auth'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tripneo_auth')\gexec
+
+    SELECT 'CREATE DATABASE tripneo_flight'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tripneo_flight')\gexec
+
+    SELECT 'CREATE DATABASE tripneo_bus'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tripneo_bus')\gexec
+
+    SELECT 'CREATE DATABASE chat_db'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'chat_db')\gexec
+
+    SELECT 'CREATE DATABASE tripneo_chat'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tripneo_chat')\gexec
+
+    SELECT 'CREATE DATABASE tripneo_train'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tripneo_train')\gexec

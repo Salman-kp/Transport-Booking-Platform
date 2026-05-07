@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bus-service-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bus-service
+  template:
+    metadata:
+      labels:
+        app: bus-service
+    spec:
+      containers:
+        - name: bus-service
+          image: 675789572615.dkr.ecr.ap-south-1.amazonaws.com/tripneo/bus-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - secretRef:
+                name: bus-service-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bus-service
+spec:
+  selector:
+    app: bus-service
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+  type: ClusterIP
