@@ -24,6 +24,8 @@ func ConnectPostgres(cfg *config.Config) {
 		log.Fatal("db migration failed")
 	}
 
+	SeedSuperAdmins(db, cfg)
+
 	log.Println("Connected to PostgreSQL!")
 
 	DB = db

@@ -20,3 +20,7 @@ func (s *FlightService) GetAirlines() ([]models.Airline, error) {
 
 	return airlines, nil
 }
+
+func (s *FlightService) GetAircraftTypes() ([]models.AircraftType, error) {
+	return s.repo.GetAircraftTypes()
+}

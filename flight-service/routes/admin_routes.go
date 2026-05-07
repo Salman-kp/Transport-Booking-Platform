@@ -24,10 +24,14 @@ func SetupAdminRoutes(app *fiber.App, db *gorm.DB) {
 	admin.Put("/bookings/:id/status", adminHandler.UpdateBookingStatus)
 
 	// Flight Management
+	admin.Get("/flights", adminHandler.GetAllFlightTemplates)
 	admin.Post("/flights", adminHandler.CreateFlight)
 	admin.Put("/flights/:id", adminHandler.UpdateFlight)
 	admin.Delete("/flights/:id", adminHandler.DeleteFlight)
 
 	// Pricing Overrides
 	admin.Patch("/flights/:instanceId/fares", adminHandler.UpdateFares)
+
+	// Instance-level Operations
+	admin.Put("/instances/:instanceId/cancel", adminHandler.CancelFlightInstance)
 }

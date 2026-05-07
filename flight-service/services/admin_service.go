@@ -42,6 +42,18 @@ func (s *AdminService) ListAllBookings() ([]models.Booking, error) {
 	return bookings, err
 }
 
+// List all flight templates
+func (s *AdminService) ListFlightTemplates() ([]models.Flight, error) {
+	var flights []models.Flight
+	err := s.db.Preload("Airline").
+		Preload("OriginAirport").
+		Preload("DestinationAirport").
+		Preload("AircraftType").
+		Order("created_at DESC").
+		Find(&flights).Error
+	return flights, err
+}
+
 // Force update a booking status (Manual Override)
 func (s *AdminService) ForceUpdateBookingStatus(bookingID uuid.UUID, status string) error {
 	return s.db.Model(&models.Booking{}).Where("id = ?", bookingID).Update("status", status).Error
@@ -100,3 +112,41 @@ func (s *AdminService) ensureReferenceExists(model interface{}, id uuid.UUID, no
 	}
 	return nil
 }
+
+// CancelFlightInstance disables a specific flight instance (e.g. due to war, weather, ops issue).
+// It cancels the instance and bulk-cancels all active bookings tied to it in a single transaction.
+func (s *AdminService) CancelFlightInstance(instanceID uuid.UUID, reason string) (int64, error) {
+	var cancelledBookings int64
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Verify instance exists and is not already cancelled
+		var instance models.FlightInstance
+		if err := tx.First(&instance, "id = ?", instanceID).Error; err != nil {
+			return errors.New("flight instance not found")
+		}
+		if instance.Status == models.CANCELLED {
+			return errors.New("flight instance is already cancelled")
+		}
+
+		// 2. Cancel the instance itself
+		if err := tx.Model(&models.FlightInstance{}).
+			Where("id = ?", instanceID).
+			Update("status", models.CANCELLED).Error; err != nil {
+			return err
+		}
+
+		// 3. Bulk-cancel all active bookings on this instance
+		result := tx.Model(&models.Booking{}).
+			Where("flight_instance_id = ? AND status IN ?", instanceID, []string{"CONFIRMED", "PENDING_PAYMENT"}).
+			Update("status", "CANCELLED_BY_AIRLINE")
+		if result.Error != nil {
+			return result.Error
+		}
+		cancelledBookings = result.RowsAffected
+
+		return nil
+	})
+
+	return cancelledBookings, err
+}
+

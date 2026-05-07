@@ -81,3 +81,12 @@ func (h *FlightHandler) GetFarePrediction(c fiber.Ctx) error {
 	res, _ := h.flightService.GetFarePrediction(id)
 	return c.JSON(fiber.Map{"success": true, "data": res})
 }
+
+func (h *FlightHandler) GetAircraftTypes(c fiber.Ctx) error {
+	types, err := h.flightService.GetAircraftTypes()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"success": true, "data": types})
+}
+

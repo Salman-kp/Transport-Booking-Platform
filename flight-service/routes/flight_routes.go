@@ -30,5 +30,6 @@ func SetupFlightRoutes(app *fiber.App, db *gorm.DB, cfg *config.Config) {
 	api.Get("/:instanceId/fare-prediction", flightHandler.GetFarePrediction)
 	api.Get("/airports", flightHandler.SearchAirport)
 	api.Get("/airlines", flightHandler.GetAirlines)
+	api.Get("/aircraft-types", flightHandler.GetAircraftTypes)
 	api.Get("/:instanceId", flightHandler.GetFlightDetails)
 }

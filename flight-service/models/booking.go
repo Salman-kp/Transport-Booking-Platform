@@ -36,6 +36,7 @@ type Booking struct {
 	FlightInstance FlightInstance  `gorm:"foreignKey:FlightInstanceID"`
 	FareType       FareType        `gorm:"foreignKey:FareTypeID"`
 	AgentInventory *AgentInventory `gorm:"foreignKey:AgentInventoryID"`
+	Ticket         *ETicket        `gorm:"foreignKey:BookingID"`
 	Passengers     []Passenger     `gorm:"foreignKey:BookingID"`
 	Ancillaries    []Ancillary     `gorm:"foreignKey:BookingID"`
 }

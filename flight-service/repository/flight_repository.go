@@ -102,3 +102,11 @@ func (r *FlightRepository) GetAirlines() ([]models.Airline, error) {
 	}
 	return airlines, nil
 }
+
+func (r *FlightRepository) GetAircraftTypes() ([]models.AircraftType, error) {
+	var types []models.AircraftType
+	if err := r.db.Find(&types).Error; err != nil {
+		return nil, domain_errors.ErrInternalServerError
+	}
+	return types, nil
+}

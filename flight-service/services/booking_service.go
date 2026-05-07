@@ -223,6 +223,10 @@ func mapBookingToDTO(booking *models.Booking) *dto.BookingResponse {
 		if p.SeatID != nil {
 			sId = p.SeatID.String()
 		}
+		var sNumber string
+		if p.Seat.SeatNumber != "" {
+			sNumber = p.Seat.SeatNumber
+		}
 		var mp string
 		if p.MealPreference != nil {
 			mp = *p.MealPreference
@@ -236,6 +240,7 @@ func mapBookingToDTO(booking *models.Booking) *dto.BookingResponse {
 			IDType:         p.IDType,
 			IDNumber:       p.IDNumber,
 			SeatID:         sId,
+			SeatNumber:     sNumber,
 			MealPreference: mp,
 		})
 	}
@@ -273,6 +278,12 @@ func mapBookingToDTO(booking *models.Booking) *dto.BookingResponse {
 		ExpiresAt:        checkedExpiresAt,
 		Passengers:       passengers,
 		Ancillaries:      ancillaries,
+	}
+
+	// Populate ticket details if available
+	if booking.Ticket != nil {
+		resp.QRCodeURL = booking.Ticket.QRCodeURL
+		resp.TicketNumber = booking.Ticket.TicketNumber
 	}
 
 	// Populate flight details if preloaded
