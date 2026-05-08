@@ -278,3 +278,24 @@ func ListUsers() fiber.Handler {
 		return c.Status(200).JSON(fiber.Map{"users": dtos})
 	}
 }
+
+// Internal endpoint for service-to-service communication
+func GetUserByID() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id := c.Params("id")
+		if id == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "user id is required"})
+		}
+
+		user, err := service.GetUserByID(id)
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+		}
+
+		return c.Status(200).JSON(fiber.Map{
+			"id":    user.ID.String(),
+			"name":  user.Name,
+			"email": user.Email,
+		})
+	}
+}

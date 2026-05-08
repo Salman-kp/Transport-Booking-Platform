@@ -113,7 +113,7 @@ func ComputationallyMapSeats(tx *gorm.DB, busInstanceID uuid.UUID, layout []byte
 		for r := 1; r <= activeDetail.Rows; r++ {
 			for c := 1; c <= totalCols; c++ {
 				pos := getPosition(c, left, right)
-				colChar := string('A' + c - 1)
+				colChar := string(rune('A' + c - 1))
 
 				if seatTypeBehavior == "sleeper" {
 					// Lower Berth

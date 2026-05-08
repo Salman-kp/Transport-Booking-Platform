@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: 675789572615.dkr.ecr.ap-south-1.amazonaws.com/tripneo/payment-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8085
+            - name: grpc
+              containerPort: 50051
+          envFrom:
+            - secretRef:
+                name: payment-service-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  selector:
+    app: payment-service
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+  type: ClusterIP

@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/junaid9001/tripneo/flight-service/config"
 	"github.com/junaid9001/tripneo/flight-service/db"
+	"github.com/junaid9001/tripneo/flight-service/email"
 	"github.com/junaid9001/tripneo/flight-service/handlers"
 	"github.com/junaid9001/tripneo/flight-service/jobs"
 	"github.com/junaid9001/tripneo/flight-service/kafka"
@@ -42,7 +43,8 @@ func main() {
 
 	// initialize repos and services for background Workers
 	bookingRepo := repository.NewBookingRepository(db.DB)
-	bookingService := services.NewBookingService(bookingRepo, payClient, ws.DefaultManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET)
+	emailClient := email.NewResendClient(cfg.RESEND_API_KEY, cfg.RESEND_FROM_ADDRESS)
+	bookingService := services.NewBookingService(bookingRepo, payClient, ws.DefaultManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET, emailClient, cfg.AUTH_SERVICE_URL)
 
 	// initialize kafka consumers
 	paymentConsumer := kafka.NewConsumer(cfg.KAFKA_BROKERS, "flight-payment-topic", "flight-service-group")

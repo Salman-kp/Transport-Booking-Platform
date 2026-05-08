@@ -22,19 +22,19 @@ func (r *BookingRepository) CreateBooking(booking *models.Booking) error {
 
 func (r *BookingRepository) GetBookingByID(id string) (*models.Booking, error) {
 	var booking models.Booking
-	err := r.db.Preload("Passengers").Preload("Ancillaries").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Preload("FareType").First(&booking, "id = ?", id).Error
+	err := r.db.Preload("Passengers.Seat").Preload("Ancillaries").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Preload("FareType").Preload("Ticket").First(&booking, "id = ?", id).Error
 	return &booking, err
 }
 
 func (r *BookingRepository) GetBookingByPNR(pnr string) (*models.Booking, error) {
 	var booking models.Booking
-	err := r.db.Preload("Passengers").Preload("Ancillaries").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Preload("FareType").First(&booking, "pnr = ?", pnr).Error
+	err := r.db.Preload("Passengers.Seat").Preload("Ancillaries").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Preload("FareType").Preload("Ticket").First(&booking, "pnr = ?", pnr).Error
 	return &booking, err
 }
 
 func (r *BookingRepository) GetBookingsByUserID(userID string) ([]models.Booking, error) {
 	var bookings []models.Booking
-	err := r.db.Preload("Passengers").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Where("user_id = ?", userID).Find(&bookings).Error
+	err := r.db.Preload("Passengers.Seat").Preload("FlightInstance.Flight.OriginAirport").Preload("FlightInstance.Flight.DestinationAirport").Preload("Ticket").Where("user_id = ?", userID).Find(&bookings).Error
 	return bookings, err
 }
 

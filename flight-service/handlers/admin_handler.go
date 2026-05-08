@@ -29,6 +29,14 @@ func (h *AdminHandler) GetAllBookings(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"bookings": bookings})
 }
 
+func (h *AdminHandler) GetAllFlightTemplates(c fiber.Ctx) error {
+	flights, err := h.service.ListFlightTemplates()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"flights": flights})
+}
+
 func (h *AdminHandler) UpdateBookingStatus(c fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := uuid.Parse(idStr)
@@ -222,3 +230,36 @@ func (h *AdminHandler) UpdateFares(c fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"success": true})
 }
+
+func (h *AdminHandler) CancelFlightInstance(c fiber.Ctx) error {
+	instanceIDStr := c.Params("instanceId")
+	instanceID, err := uuid.Parse(instanceIDStr)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid instance id"})
+	}
+
+	type Request struct {
+		Reason string `json:"reason"`
+	}
+	var req Request
+	// Reason is optional — bind but don't error if body is empty
+	_ = c.Bind().JSON(&req)
+
+	cancelledBookings, err := h.service.CancelFlightInstance(instanceID, req.Reason)
+	if err != nil {
+		if err.Error() == "flight instance not found" {
+			return c.Status(404).JSON(fiber.Map{"error": err.Error()})
+		}
+		if err.Error() == "flight instance is already cancelled" {
+			return c.Status(409).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":            true,
+		"cancelled_bookings": cancelledBookings,
+		"message":            "flight instance cancelled; all active bookings marked CANCELLED_BY_AIRLINE",
+	})
+}
+

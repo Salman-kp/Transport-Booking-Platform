@@ -18,6 +18,9 @@ type Config struct {
 	JWT_EXPIRY string
 
 	RESEND_API_KEY string
+
+	SUPER_ADMINS string
+	SUPER_ADMIN_PASSWORD string
 }
 
 // load env and initialize config struct
@@ -37,6 +40,9 @@ func LoadConfig() *Config {
 
 	RESEND_API_KEY := os.Getenv("RESEND_API_KEY")
 
+	SUPER_ADMINS := os.Getenv("SUPER_ADMINS")
+	SUPER_ADMIN_PASSWORD := os.Getenv("SUPER_ADMIN_PASSWORD")
+
 	cfg := &Config{
 		APP_PORT: APP_PORT,
 
@@ -49,6 +55,9 @@ func LoadConfig() *Config {
 		JWT_EXPIRY: JWT_EXPIRY,
 
 		RESEND_API_KEY: RESEND_API_KEY,
+
+		SUPER_ADMINS: SUPER_ADMINS,
+		SUPER_ADMIN_PASSWORD: SUPER_ADMIN_PASSWORD,
 	}
 
 	return cfg

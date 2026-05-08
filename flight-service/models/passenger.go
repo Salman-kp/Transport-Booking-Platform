@@ -10,6 +10,7 @@ type Passenger struct {
 	ID             uuid.UUID  `gorm:"type:uuid;primarykey;default:gen_random_uuid()"`
 	BookingID      uuid.UUID  `gorm:"type:uuid;not null"`
 	SeatID         *uuid.UUID `gorm:"type:uuid"`
+	Seat           Seat       `gorm:"foreignKey:SeatID"`
 	FirstName      string     `gorm:"size:100;not null"`
 	LastName       string     `gorm:"size:100;not null"`
 	DateOfBirth    time.Time  `gorm:"type:date;not null"`

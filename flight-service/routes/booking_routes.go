@@ -14,7 +14,7 @@ import (
 
 func SetupBookingRoutes(app *fiber.App, db *gorm.DB, payClient *rpc.PaymentClient, wsManager *ws.Manager, cfg *config.Config) {
 	bookingRepo := repository.NewBookingRepository(db)
-	bookingService := services.NewBookingService(bookingRepo, payClient, wsManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET)
+	bookingService := services.NewBookingService(bookingRepo, payClient, wsManager, cfg.QR_PUBLIC_BASE_URL, cfg.QR_SIGNING_SECRET, nil, "")
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 
 	api := app.Group("/api/flights/bookings")

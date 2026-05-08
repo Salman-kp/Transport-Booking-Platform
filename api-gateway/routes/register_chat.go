@@ -19,4 +19,10 @@ func RegisterChatRoutes(app *gin.Engine, cfg *config.Config, rdb *redis.Client) 
 	// Rate limit REST routes only
 	chat.GET("/messages", middleware.JwtMiddleware(cfg), middleware.RateLimit(rdb), proxy.To(cfg.CHAT_SERVICE_URL))
 	chat.POST("/admin/reply/:userId", middleware.JwtMiddleware(cfg), middleware.RateLimit(rdb), proxy.To(cfg.CHAT_SERVICE_URL))
+
+	// WhatsApp Cloud API Webhooks
+	webhooks := api.Group("/webhooks")
+	// Meta hits this without JWT
+	webhooks.GET("/whatsapp", proxy.To(cfg.CHAT_SERVICE_URL))
+	webhooks.POST("/whatsapp", proxy.To(cfg.CHAT_SERVICE_URL))
 }

@@ -24,12 +24,12 @@ services:
       - "9092:9092"
     restart: always
 
-  prometheus:
-    image: prom/prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  # prometheus:
+  #   image: prom/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
 
   api-gateway:
     build:
@@ -83,6 +83,7 @@ services:
       REDIS_URL: redis:6379
       KAFKA_BROKERS: redpanda:9092
       PAYMENT_SERVICE_GRPC_URL: payment-service:50051
+      AUTH_SERVICE_URL: http://auth-service:8081
     depends_on:
       - redis
       - redpanda
@@ -105,26 +106,26 @@ services:
   #     - redis
   #     - redpanda
 
-  bus-service:
-    build:
-      context: ./bus-service
-      dockerfile: Dockerfile
-    expose:
-      - 8083
-    env_file:
-      - ./bus-service/.env
-    environment:
-      DB_URL: ${BUS_DB}
-      RUN_SEED_ON_BOOT: "true"
-      # REDIS_HOST: redis
-      # REDIS_PORT: 6379   
-      REDIS_URL: redis:6379
-      KAFKA_BROKERS: redpanda:9092
-      PAYMENT_SERVICE_ADDR: payment-service:50051
+  # bus-service:
+  #   build:
+  #     context: ./bus-service
+  #     dockerfile: Dockerfile
+  #   expose:
+  #     - 8083
+  #   env_file:
+  #     - ./bus-service/.env
+  #   environment:
+  #     DB_URL: ${BUS_DB}
+  #     RUN_SEED_ON_BOOT: "true"
+  #     # REDIS_HOST: redis
+  #     # REDIS_PORT: 6379   
+  #     REDIS_URL: redis:6379
+  #     KAFKA_BROKERS: redpanda:9092
+  #     PAYMENT_SERVICE_ADDR: payment-service:50051
 
-    depends_on:
-      - redis
-      - redpanda
+  #   depends_on:
+  #     - redis
+  #     - redpanda
 
   payment-service:
     build:

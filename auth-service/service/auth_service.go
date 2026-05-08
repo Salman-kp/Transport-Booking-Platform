@@ -145,6 +145,10 @@ func AssignRole(email string, role string, permissions []string) error {
 	return repository.AssignRole(email, role, permissions)
 }
 
+func GetUserByID(id string) (*models.User, error) {
+	return repository.FindUserByID(id)
+}
+
 func ListUsers() ([]models.User, error) {
 	return repository.ListUsers()
 }

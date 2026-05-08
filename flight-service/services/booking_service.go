@@ -10,14 +10,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/junaid9001/tripneo/flight-service/dto"
+	"github.com/junaid9001/tripneo/flight-service/email"
 	"github.com/junaid9001/tripneo/flight-service/kafka"
 	"github.com/junaid9001/tripneo/flight-service/models"
 	"github.com/junaid9001/tripneo/flight-service/redis"
@@ -33,15 +36,19 @@ type BookingService struct {
 	qrPublicBaseURL string
 	qrSigningSecret string
 	razorpayChan    chan string // used to pass order IDs back to DTO mapper
+	emailClient     *email.ResendClient
+	authServiceURL  string
 }
 
-func NewBookingService(repo *repository.BookingRepository, payClient *rpc.PaymentClient, wsManager *ws.Manager, qrPublicBaseURL string, qrSigningSecret string) *BookingService {
+func NewBookingService(repo *repository.BookingRepository, payClient *rpc.PaymentClient, wsManager *ws.Manager, qrPublicBaseURL string, qrSigningSecret string, emailClient *email.ResendClient, authServiceURL string) *BookingService {
 	return &BookingService{
 		repo:            repo,
 		payClient:       payClient,
 		wsManager:       wsManager,
 		qrPublicBaseURL: qrPublicBaseURL,
 		qrSigningSecret: qrSigningSecret,
+		emailClient:     emailClient,
+		authServiceURL:  authServiceURL,
 	}
 }
 
@@ -56,14 +63,19 @@ func (s *BookingService) CreateBooking(userID string, req *dto.CreateBookingRequ
 		return nil, errors.New("mandatory flight or fare ID missing")
 	}
 
-	flightInstance, err := s.repo.GetFlightInstanceByID(req.FlightInstanceID)
+	_, err := s.repo.GetFlightInstanceByID(req.FlightInstanceID)
 	if err != nil {
 		return nil, errors.New("invalid flight instance")
 	}
 
-	_, err = s.repo.GetFareTypeByID(req.FareTypeID)
+	fareType, err := s.repo.GetFareTypeByID(req.FareTypeID)
 	if err != nil {
 		return nil, errors.New("invalid fare type")
+	}
+
+	// Validate the fare type belongs to the requested flight instance
+	if fareType.FlightInstanceID.String() != req.FlightInstanceID {
+		return nil, errors.New("fare type does not belong to this flight instance")
 	}
 
 	if len(req.Passengers) > 9 {
@@ -74,12 +86,8 @@ func (s *BookingService) CreateBooking(userID string, req *dto.CreateBookingRequ
 	fiId, _ := uuid.Parse(req.FlightInstanceID)
 	ftId, _ := uuid.Parse(req.FareTypeID)
 
-	var baseFare float64 = 0
-	if req.SeatClass == "BUSINESS" {
-		baseFare = flightInstance.CurrentPriceBusiness
-	} else {
-		baseFare = flightInstance.CurrentPriceEconomy
-	}
+	// Use the fare type's price as the source of truth for pricing
+	baseFare := fareType.Price
 
 	totalBase := baseFare * float64(len(req.Passengers))
 
@@ -215,6 +223,10 @@ func mapBookingToDTO(booking *models.Booking) *dto.BookingResponse {
 		if p.SeatID != nil {
 			sId = p.SeatID.String()
 		}
+		var sNumber string
+		if p.Seat.SeatNumber != "" {
+			sNumber = p.Seat.SeatNumber
+		}
 		var mp string
 		if p.MealPreference != nil {
 			mp = *p.MealPreference
@@ -228,6 +240,7 @@ func mapBookingToDTO(booking *models.Booking) *dto.BookingResponse {
 			IDType:         p.IDType,
 			IDNumber:       p.IDNumber,
 			SeatID:         sId,
+			SeatNumber:     sNumber,
 			MealPreference: mp,
 		})
 	}
@@ -265,6 +278,12 @@ func mapBookingToDTO(booking *models.Booking) *dto.BookingResponse {
 		ExpiresAt:        checkedExpiresAt,
 		Passengers:       passengers,
 		Ancillaries:      ancillaries,
+	}
+
+	// Populate ticket details if available
+	if booking.Ticket != nil {
+		resp.QRCodeURL = booking.Ticket.QRCodeURL
+		resp.TicketNumber = booking.Ticket.TicketNumber
 	}
 
 	// Populate flight details if preloaded
@@ -524,19 +543,27 @@ func (s *BookingService) calculateRefundAmount(booking *models.Booking) float64 
 		return 0
 	}
 
-	// Non-refundable fares are not eligible for refund.
+	now := time.Now().UTC()
+	departure := booking.FlightInstance.DepartureAt.UTC()
+	hoursLeft := departure.Sub(now).Hours()
+	refundPct := 0.0
+
+	var hoursSinceConfirmed float64 = 999999
+	if booking.ConfirmedAt != nil {
+		hoursSinceConfirmed = now.Sub(booking.ConfirmedAt.UTC()).Hours()
+	}
+
+	// 2-hour free cancellation grace period overrides non-refundable flag
+	if hoursSinceConfirmed <= 2.0 {
+		return booking.TotalAmount
+	}
+
+	// Non-refundable fares are not eligible for refund outside grace period.
 	if !booking.FareType.IsRefundable {
 		return 0
 	}
 
-	hoursLeft := time.Until(booking.FlightInstance.DepartureAt).Hours()
-	refundPct := 0.0
-
-	if booking.ConfirmedAt != nil && time.Since(*booking.ConfirmedAt) <= 2*time.Hour && hoursLeft > 24 {
-		refundPct = 100.0
-	} else if hoursLeft >= 72 {
-		refundPct = 90.0
-	} else if hoursLeft >= 24 {
+	if hoursLeft >= 72 {
 		refundPct = 60.0
 	} else if hoursLeft >= 4 {
 		refundPct = 25.0
@@ -652,6 +679,9 @@ func (s *BookingService) ProcessPaymentEvent(evt kafka.PaymentCompletedEvent) {
 		_ = s.wsManager.SendToUser(booking.UserID.String(), msg)
 		log.Printf("[WS SUCCESS] Notified user %s of confirmed booking %s", booking.UserID.String(), evt.BookingID)
 	}
+
+	// send confirmation email asynchronously
+	go s.sendConfirmationEmail(booking)
 }
 
 func (s *BookingService) ProcessRefundedEvent(evt kafka.PaymentRefundedEvent) {
@@ -678,4 +708,77 @@ func (s *BookingService) ProcessRefundFailedEvent(evt kafka.PaymentRefundFailedE
 	}
 
 	log.Printf("[KAFKA INFO] Refund marked FAILED for flight booking %s, reason: %s", evt.BookingID, evt.Reason)
+}
+
+func (s *BookingService) sendConfirmationEmail(booking *models.Booking) {
+	if s.emailClient == nil {
+		return
+	}
+
+	userEmail, userName, err := s.fetchUserEmail(booking.UserID.String())
+	if err != nil {
+		log.Printf("[EMAIL ERROR] Failed to fetch user email for %s: %v", booking.UserID.String(), err)
+		return
+	}
+
+	var passengerNames []string
+	for _, p := range booking.Passengers {
+		passengerNames = append(passengerNames, p.FirstName+" "+p.LastName)
+	}
+
+	departureTime := ""
+	arrivalTime := ""
+	if !booking.FlightInstance.DepartureAt.IsZero() {
+		departureTime = booking.FlightInstance.DepartureAt.Format("02 Jan 2006, 15:04")
+	}
+	if !booking.FlightInstance.ArrivalAt.IsZero() {
+		arrivalTime = booking.FlightInstance.ArrivalAt.Format("02 Jan 2006, 15:04")
+	}
+
+	data := email.BookingEmailData{
+		ToEmail:       userEmail,
+		ToName:        userName,
+		PNR:           booking.PNR,
+		FlightNumber:  booking.FlightInstance.Flight.FlightNumber,
+		Origin:        booking.FlightInstance.Flight.OriginAirport.IataCode,
+		Destination:   booking.FlightInstance.Flight.DestinationAirport.IataCode,
+		DepartureTime: departureTime,
+		ArrivalTime:   arrivalTime,
+		SeatClass:     booking.SeatClass,
+		TotalAmount:   booking.TotalAmount,
+		Currency:      booking.Currency,
+		Passengers:    passengerNames,
+	}
+
+	if err := s.emailClient.SendBookingConfirmation(data); err != nil {
+		log.Printf("[EMAIL ERROR] Failed to send confirmation for PNR %s: %v", booking.PNR, err)
+	}
+}
+
+func (s *BookingService) fetchUserEmail(userID string) (string, string, error) {
+	if s.authServiceURL == "" {
+		return "", "", fmt.Errorf("AUTH_SERVICE_URL not configured")
+	}
+
+	url := fmt.Sprintf("%s/api/auth/internal/user/%s", s.authServiceURL, userID)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to reach auth-service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", "", fmt.Errorf("auth-service returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", "", fmt.Errorf("failed to decode auth response: %w", err)
+	}
+
+	return result.Email, result.Name, nil
 }

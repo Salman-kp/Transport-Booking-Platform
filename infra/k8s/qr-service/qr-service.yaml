@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qr-service-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qr-service
+  template:
+    metadata:
+      labels:
+        app: qr-service
+    spec:
+      containers:
+        - name: qr-service
+          image: 675789572615.dkr.ecr.ap-south-1.amazonaws.com/tripneo/qr-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8087
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qr-service
+spec:
+  selector:
+    app: qr-service
+  ports:
+    - name: http
+      port: 8087
+      targetPort: 8087
+  type: ClusterIP

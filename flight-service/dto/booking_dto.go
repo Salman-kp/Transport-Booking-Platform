@@ -9,6 +9,7 @@ type PassengerDto struct {
 	IDType         string `json:"id_type"`        // PASSPORT | AADHAAR | PAN
 	IDNumber       string `json:"id_number"`
 	SeatID         string `json:"seat_id,omitempty"`
+	SeatNumber     string `json:"seat_number,omitempty"`
 	MealPreference string `json:"meal_preference,omitempty"`
 }
 
@@ -54,6 +55,8 @@ type BookingResponse struct {
 	Destination        string             `json:"destination,omitempty"`
 	DepartureTime      string             `json:"departure_time,omitempty"`
 	ArrivalTime        string             `json:"arrival_time,omitempty"`
+	QRCodeURL          string             `json:"qr_code_url,omitempty"`
+	TicketNumber       string             `json:"ticket_number,omitempty"`
 	RefundAmount       *float64           `json:"refund_amount,omitempty"`
 	RefundStatus       string             `json:"refund_status,omitempty"`
 }

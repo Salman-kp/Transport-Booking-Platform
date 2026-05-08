@@ -84,6 +84,8 @@ func generateForDate(db *gorm.DB, flight models.Flight, targetDate time.Time) bo
 		Status:               models.SCHEDULED,
 		AvailableEconomy:     0,
 		AvailableBusiness:    0,
+		BasePriceEconomy:     5000.0,
+		CurrentPriceEconomy:  5000.0,
 		BasePriceBusiness:    15000.0,
 		CurrentPriceBusiness: 15000.0,
 	}
@@ -92,15 +94,17 @@ func generateForDate(db *gorm.DB, flight models.Flight, targetDate time.Time) bo
 	if err := json.Unmarshal([]byte(flight.AircraftType.SeatLayout), &layout); err == nil {
 		if layout.Economy != nil {
 			totalEco := layout.Economy.Rows * len(layout.Economy.Columns)
-			instance.AvailableEconomy = totalEco
-			instance.PlatformQuotaEconomy = int(float64(totalEco) * 0.3) // 30% Platform quota
+			instance.PlatformQuotaEconomy = int(float64(totalEco) * 0.3)
 		}
 		if layout.Business != nil {
 			totalBus := layout.Business.Rows * len(layout.Business.Columns)
-			instance.AvailableBusiness = totalBus
-			instance.PlatformQuotaBusiness = int(float64(totalBus) * 0.3) // 30% Platform quota
+			instance.PlatformQuotaBusiness = int(float64(totalBus) * 0.3)
 		}
 	}
+
+	// Use the calculated platform quota as the source of truth for availability
+	instance.AvailableEconomy = instance.PlatformQuotaEconomy
+	instance.AvailableBusiness = instance.PlatformQuotaBusiness
 
 	err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "flight_id"}, {Name: "flight_date"}},
@@ -112,7 +116,6 @@ func generateForDate(db *gorm.DB, flight models.Flight, targetDate time.Time) bo
 	}
 
 	if instance.ID == uuid.Nil {
-		// If OnConflict DoUpdate didn't return the ID, we need to fetch it
 		db.Where("flight_id = ? AND flight_date = ?", flight.ID, targetDate).First(&instance)
 	}
 
@@ -123,42 +126,56 @@ func generateForDate(db *gorm.DB, flight models.Flight, targetDate time.Time) bo
 	}
 	db.Clauses(clause.OnConflict{DoNothing: true}).Create(&fares)
 
-	// Refresh seats to match quota
+	// Refresh available seats for our quota
 	db.Where("flight_instance_id = ? AND is_available = ?", instance.ID, true).Delete(&models.Seat{})
 
 	var seats []models.Seat
 	currentRow := 1
 
-	// Generate first 30% of rows for our platform
-	if layout.Business != nil {
-		quotaRows := int(float64(layout.Business.Rows) * 0.3)
-		if quotaRows == 0 && layout.Business.Rows > 0 {
-			quotaRows = 1
-		}
-		for r := 0; r < quotaRows; r++ {
+	// Generate Business seats strictly up to PlatformQuotaBusiness
+	if layout.Business != nil && instance.PlatformQuotaBusiness > 0 {
+		count := 0
+		for r := 0; r < layout.Business.Rows && count < instance.PlatformQuotaBusiness; r++ {
 			for _, col := range layout.Business.Columns {
 				if col == "" {
 					continue
 				}
-				seats = append(seats, models.Seat{FlightInstanceID: instance.ID, SeatNumber: fmt.Sprintf("%d%s", currentRow, col), SeatClass: "BUSINESS", IsAvailable: true})
+				if count >= instance.PlatformQuotaBusiness {
+					break
+				}
+				seats = append(seats, models.Seat{
+					FlightInstanceID: instance.ID,
+					SeatNumber:       fmt.Sprintf("%d%s", currentRow, col),
+					SeatClass:        "BUSINESS",
+					IsAvailable:      true,
+				})
+				count++
 			}
 			currentRow++
 		}
-		// Skip remaining business rows to maintain correct numbering for economy
-		currentRow += (layout.Business.Rows - quotaRows)
+		// Increment currentRow to skip remaining rows in the layout
+		remainingRows := layout.Business.Rows - (currentRow - 1)
+		currentRow += remainingRows
 	}
 
-	if layout.Economy != nil {
-		quotaRows := int(float64(layout.Economy.Rows) * 0.3)
-		if quotaRows == 0 && layout.Economy.Rows > 0 {
-			quotaRows = 1
-		}
-		for r := 0; r < quotaRows; r++ {
+	// Generate Economy seats strictly up to PlatformQuotaEconomy
+	if layout.Economy != nil && instance.PlatformQuotaEconomy > 0 {
+		count := 0
+		for r := 0; r < layout.Economy.Rows && count < instance.PlatformQuotaEconomy; r++ {
 			for _, col := range layout.Economy.Columns {
 				if col == "" {
 					continue
 				}
-				seats = append(seats, models.Seat{FlightInstanceID: instance.ID, SeatNumber: fmt.Sprintf("%d%s", currentRow, col), SeatClass: "ECONOMY", IsAvailable: true})
+				if count >= instance.PlatformQuotaEconomy {
+					break
+				}
+				seats = append(seats, models.Seat{
+					FlightInstanceID: instance.ID,
+					SeatNumber:       fmt.Sprintf("%d%s", currentRow, col),
+					SeatClass:        "ECONOMY",
+					IsAvailable:      true,
+				})
+				count++
 			}
 			currentRow++
 		}
