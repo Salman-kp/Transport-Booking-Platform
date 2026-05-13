@@ -33,6 +33,7 @@ func ConnectPostgres(cfg *config.Config) {
 		&model.Cancellation{},
 		&model.ETicket{},
 		&model.PricingRule{},
+		&model.PrebookingAccounting{},
 	); err != nil {
 		log.Fatal("DB migration failed:", err)
 	}

@@ -80,7 +80,7 @@ func main() {
 
 	routes.SetupBusRoutes(app, db.DB, cfg)
 	routes.SetupBookingRoutes(app, db.DB, payClient, ws.DefaultManager, cfg)
-	routes.SetupAdminRoutes(app, db.DB)
+	routes.SetupAdminRoutes(app, db.DB, payClient, redis.Client, ws.DefaultManager)
 	routes.SetupOperatorRoutes(app, db.DB)
 
 	// ── Background jobs ────────────
@@ -94,10 +94,14 @@ func main() {
 	c.AddFunc("*/5 * * * *", func() {
 		jobs.CleanupExpiredBookings(db.DB)
 	})
+	c.AddFunc("*/15 * * * *", func() {
+		jobs.FinalizePrebookingAccounting(db.DB)
+	})
 	c.Start()
 
 	go jobs.GenerateUpcomingInventory(db.DB)
-	go jobs.UpdatePricesBasedOnRules(db.DB) // Run once on boot too
+	go jobs.UpdatePricesBasedOnRules(db.DB)     // Run once on boot too
+	go jobs.FinalizePrebookingAccounting(db.DB) // Run once on boot too
 
 	log.Printf("🚌 Bus Service running on http://localhost:%s", cfg.PORT)
 	app.Listen(":" + cfg.PORT)

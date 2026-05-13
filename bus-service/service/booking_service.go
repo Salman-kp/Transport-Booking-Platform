@@ -486,6 +486,11 @@ func (s *bookingService) ConfirmBooking(id string, userID string, paymentRef str
 		log.Printf("[booking-service] Inventory update failed (non-fatal): %v", err)
 	}
 
+	// Update PrebookingAccounting profit amount
+	if err := s.repo.AddProfitToPrebookingAccounting(booking.BusInstanceID.String(), booking.TotalAmount); err != nil {
+		log.Printf("[booking-service] Prebooking accounting profit update failed: %v", err)
+	}
+
 	// 5. Generate e-ticket with signed QR logic
 	qrData, err := s.buildQRData(booking)
 	if err != nil {
@@ -582,6 +587,9 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 	)
 
 	hoursLeft := int(math.Ceil(time.Until(fullDepartureAt).Hours()))
+	if hoursLeft <= 0 {
+		return nil, errors.New("cannot cancel booking after bus has departed")
+	}
 	policy, err := s.repo.GetActiveCancellationPolicy(hoursLeft)
 	if err != nil {
 		return nil, errors.New("failed to determine refund policy: " + err.Error())
@@ -595,7 +603,7 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 	}
 
 	refundAmount := math.Round(booking.TotalAmount*(refundPct/100)*100) / 100
-	
+
 	// Subtract cancellation fee if applicable
 	if policy.CancellationFee > 0 {
 		if refundAmount > policy.CancellationFee {
@@ -609,7 +617,7 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 		refundAmount = 0
 	}
 
-	log.Printf("[CANCEL DEBUG] PNR: %s, Total: %.2f, Pct: %.2f%%, Status: %s, Refund: %.2f", 
+	log.Printf("[CANCEL DEBUG] PNR: %s, Total: %.2f, Pct: %.2f%%, Status: %s, Refund: %.2f",
 		booking.PNR, booking.TotalAmount, refundPct, booking.Status, refundAmount)
 
 	// ── Release seats ─────────────────────────────────────────────────────────
@@ -629,6 +637,12 @@ func (s *bookingService) CancelBooking(id string, userID string, req *dto.Cancel
 			booking.SeatType,
 			len(seatIDs),
 		)
+
+		if refundAmount > 0 {
+			if err := s.repo.SubtractProfitFromPrebookingAccounting(booking.BusInstanceID.String(), refundAmount); err != nil {
+				log.Printf("[booking-service] Prebooking accounting profit subtract failed: %v", err)
+			}
+		}
 	}
 
 	reason := "User requested cancellation"

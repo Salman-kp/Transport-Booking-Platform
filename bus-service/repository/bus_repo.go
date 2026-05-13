@@ -43,6 +43,8 @@ func (r *busRepository) SearchBuses(filter model.SearchBusFilter) ([]model.BusIn
 		Where("bp.sequence_order < dp.sequence_order").
 		Where("DATE(bus_instances.travel_date) = ?", filter.TravelDate).
 		Where("bus_instances.status = ?", "SCHEDULED").
+		// If searching for today, exclude buses that have already departed
+		Where("(DATE(bus_instances.travel_date) != CURRENT_DATE OR bus_instances.departure_at - INTERVAL '10 minutes' > NOW())").
 		// Ensure the bus has at least one seat marked as available in the seats table
 		Where("EXISTS (SELECT 1 FROM seats s WHERE s.bus_instance_id = bus_instances.id AND s.is_available = true)").
 		// Double check via BusInstance availability counts

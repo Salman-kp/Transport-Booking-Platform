@@ -46,9 +46,9 @@ func StartRedisExpirySubscriber() {
 
 			// notify the user via WebSocket
 			message := map[string]interface{}{
-				"type":    "SESSION_EXPIRED",
-				"message": "Your hold on the selected seat has expired.",
-				"seat_id": seatID,
+				"type":            "SESSION_EXPIRED",
+				"message":         "Your hold on the selected seat has expired.",
+				"seat_id":         seatID,
 				"bus_instance_id": busInstanceID,
 			}
 			ws.DefaultManager.SendToUser(userID, message)

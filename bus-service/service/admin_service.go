@@ -1,13 +1,21 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"math"
 	"time"
 
+	"github.com/Salman-kp/tripneo/bus-service/dto"
 	"github.com/Salman-kp/tripneo/bus-service/model"
+	busredis "github.com/Salman-kp/tripneo/bus-service/redis"
 	"github.com/Salman-kp/tripneo/bus-service/repository"
+	"github.com/Salman-kp/tripneo/bus-service/rpc"
+	"github.com/Salman-kp/tripneo/bus-service/ws"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -34,15 +42,23 @@ type AdminService interface {
 	UpdateBusInstanceStatus(id uuid.UUID, status string) error
 	ListBuses() ([]model.Bus, error)
 	GetPricingRules() ([]model.PricingRule, error)
+	GetDailyAccountingAnalytics() ([]map[string]interface{}, error)
+	GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error)
+	GetBookingsByInstance(instanceID string) ([]model.Booking, error)
+	CancelBooking(id string, req *dto.CancelBookingRequest) (*dto.CancelBookingResponse, error)
 }
 
 type adminService struct {
-	repo repository.AdminRepository
-	db   *gorm.DB
+	repo        repository.AdminRepository
+	bookingRepo repository.BookingRepository
+	db          *gorm.DB
+	payClient   *rpc.PaymentClient
+	rdb         *goredis.Client
+	wsManager   *ws.Manager
 }
 
-func NewAdminService(repo repository.AdminRepository, db *gorm.DB) AdminService {
-	return &adminService{repo: repo, db: db}
+func NewAdminService(repo repository.AdminRepository, bookingRepo repository.BookingRepository, db *gorm.DB, payClient *rpc.PaymentClient, rdb *goredis.Client, wsManager *ws.Manager) AdminService {
+	return &adminService{repo: repo, bookingRepo: bookingRepo, db: db, payClient: payClient, rdb: rdb, wsManager: wsManager}
 }
 
 func (s *adminService) CreateBus(bus *model.Bus) error {
@@ -139,7 +155,9 @@ func (s *adminService) UpdateBus(id uuid.UUID, updates map[string]interface{}) e
 	if val, ok := updates["duration_minutes"]; ok {
 		switch v := val.(type) {
 		case float64:
-			if v <= 0 { return errors.New("duration_minutes must be greater than 0") }
+			if v <= 0 {
+				return errors.New("duration_minutes must be greater than 0")
+			}
 		case string:
 			return errors.New("duration_minutes must be a number")
 		}
@@ -273,4 +291,183 @@ func (s *adminService) ListBuses() ([]model.Bus, error) {
 
 func (s *adminService) GetPricingRules() ([]model.PricingRule, error) {
 	return s.repo.GetPricingRules()
+}
+
+func (s *adminService) GetDailyAccountingAnalytics() ([]map[string]interface{}, error) {
+	return s.repo.GetDailyAccountingAnalytics()
+}
+
+func (s *adminService) GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error) {
+	return s.repo.GetInstanceAccountingAnalytics(instanceID)
+}
+
+func (s *adminService) GetBookingsByInstance(instanceID string) ([]model.Booking, error) {
+	return s.repo.GetBookingsByInstance(instanceID)
+}
+
+func (s *adminService) CancelBooking(id string, req *dto.CancelBookingRequest) (*dto.CancelBookingResponse, error) {
+	// 1. Fetch booking via repo directly using the admin method
+	booking, err := s.bookingRepo.FindBookingByIDForAdmin(id)
+	if err != nil {
+		return nil, errors.New("booking not found")
+	}
+
+	if booking.Status != "CONFIRMED" && booking.Status != "PENDING_PAYMENT" {
+		return nil, errors.New("only CONFIRMED or PENDING_PAYMENT bookings can be cancelled")
+	}
+
+	if booking.BusInstance.DepartureAt.IsZero() || booking.BusInstance.TravelDate.IsZero() {
+		return nil, errors.New("cannot determine refund: bus travel date or departure time is missing")
+	}
+
+	// Calculate departure time
+	departureDate := booking.BusInstance.TravelDate
+	departureTime := booking.BusInstance.DepartureAt
+	fullDepartureAt := time.Date(
+		departureDate.Year(), departureDate.Month(), departureDate.Day(),
+		departureTime.Hour(), departureTime.Minute(), departureTime.Second(),
+		0, departureTime.Location(),
+	)
+
+	hoursLeft := int(math.Ceil(time.Until(fullDepartureAt).Hours()))
+	if hoursLeft <= 0 {
+		return nil, errors.New("cannot cancel booking after bus has departed")
+	}
+	policy, err := s.bookingRepo.GetActiveCancellationPolicy(hoursLeft)
+	if err != nil {
+		return nil, errors.New("failed to determine refund policy: " + err.Error())
+	}
+
+	// Refund logic identical to user cancellation but triggered by admin
+	refundPct := policy.RefundPercentage
+	if !booking.FareType.IsRefundable && booking.Status == "CONFIRMED" {
+		refundPct = 0
+	}
+
+	refundAmount := math.Round(booking.TotalAmount*(refundPct/100)*100) / 100
+	if policy.CancellationFee > 0 {
+		if refundAmount > policy.CancellationFee {
+			refundAmount -= policy.CancellationFee
+		} else {
+			refundAmount = 0
+		}
+	}
+
+	if booking.Status == "PENDING_PAYMENT" {
+		refundAmount = 0
+	}
+
+	// Release seats
+	seatIDs := make([]string, 0)
+	for _, p := range booking.Passengers {
+		if p.SeatID != nil {
+			seatIDs = append(seatIDs, p.SeatID.String())
+		}
+	}
+
+	if len(seatIDs) > 0 {
+		if err := s.bookingRepo.UpdateMultipleSeatsAvailability(seatIDs, true); err != nil {
+			return nil, errors.New("failed to release seats: " + err.Error())
+		}
+		// Unlock any lingering Redis locks (PENDING_PAYMENT case)
+		if s.rdb != nil {
+			_ = busredis.UnlockSeatsByOwner(context.Background(), s.rdb, booking.BusInstanceID.String(), seatIDs, booking.UserID.String())
+		}
+	}
+
+	if booking.Status == "CONFIRMED" {
+		_ = s.bookingRepo.IncrementInventoryOnCancel(
+			booking.BusInstanceID.String(),
+			booking.FareTypeID.String(),
+			booking.SeatType,
+			len(seatIDs),
+		)
+
+		if refundAmount > 0 {
+			if err := s.bookingRepo.SubtractProfitFromPrebookingAccounting(booking.BusInstanceID.String(), refundAmount); err != nil {
+				log.Printf("[admin-service] Prebooking accounting profit subtract failed: %v", err)
+			}
+		}
+	}
+
+	reason := "Cancelled by Admin"
+	if req != nil && req.Reason != "" {
+		reason = req.Reason
+	}
+
+	var policyID *uuid.UUID
+	if policy.ID != (uuid.UUID{}) {
+		pid := policy.ID
+		policyID = &pid
+	}
+
+	canInitiateRefund := refundAmount > 0 && s.payClient != nil && booking.PaymentRef != ""
+	initialRefundStatus := "PENDING"
+	if !canInitiateRefund {
+		if refundAmount > 0 {
+			initialRefundStatus = "PENDING"
+		} else {
+			initialRefundStatus = "SUCCESS"
+		}
+	}
+
+	cancelRecord := &model.Cancellation{
+		BookingID:       booking.ID,
+		Reason:          reason,
+		RefundAmount:    refundAmount,
+		RefundStatus:    initialRefundStatus,
+		PolicyAppliedID: policyID,
+	}
+
+	if err := s.bookingRepo.CreateCancellation(cancelRecord); err != nil {
+		return nil, errors.New("failed to log cancellation: " + err.Error())
+	}
+
+	refundStatus := initialRefundStatus
+	if canInitiateRefund {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+
+		_, refundErr := s.payClient.CreateRefund(
+			ctx,
+			booking.ID.String(),
+			booking.PaymentRef,
+			refundAmount,
+			booking.Currency,
+			booking.UserID.String(),
+			"requested_by_admin",
+		)
+		if refundErr != nil {
+			log.Printf("[ADMIN REFUND ERROR] Failed to initiate refund for booking %s: %v", booking.ID.String(), refundErr)
+			_ = s.bookingRepo.UpdateCancellationRefundStatus(booking.ID.String(), "FAILED")
+			refundStatus = "FAILED"
+		}
+	}
+
+	if err := s.bookingRepo.UpdateBookingStatusForAdmin(id, "CANCELLED", ""); err != nil {
+		return nil, err
+	}
+
+	// notify frontend via websocket
+	if s.wsManager != nil {
+		msg := map[string]interface{}{
+			"event": "BOOKING_CANCELLED",
+			"payload": map[string]interface{}{
+				"booking_id":    booking.ID.String(),
+				"pnr":           booking.PNR,
+				"refund_amount": refundAmount,
+				"status":        "CANCELLED",
+			},
+		}
+		_ = s.wsManager.SendToUser(booking.UserID.String(), msg)
+		log.Printf("[WS SUCCESS] Notified user %s of cancelled booking %s by admin", booking.UserID.String(), booking.ID.String())
+	}
+
+	return &dto.CancelBookingResponse{
+		BookingID:    booking.ID.String(),
+		PNR:          booking.PNR,
+		Status:       "CANCELLED",
+		RefundAmount: refundAmount,
+		RefundStatus: refundStatus,
+	}, nil
 }

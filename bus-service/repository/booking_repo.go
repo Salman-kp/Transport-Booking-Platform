@@ -37,6 +37,12 @@ type BookingRepository interface {
 	// Inventory — allocated model adjustments on confirm/cancel
 	DecrementInventoryOnConfirm(busInstanceID, fareTypeID, seatType string, count int) error
 	IncrementInventoryOnCancel(busInstanceID, fareTypeID, seatType string, count int) error
+
+	// Accounting
+	AddProfitToPrebookingAccounting(busInstanceID string, amount float64) error
+	SubtractProfitFromPrebookingAccounting(busInstanceID string, amount float64) error
+	FindBookingByIDForAdmin(id string) (*model.Booking, error)
+	UpdateBookingStatusForAdmin(id, status, paymentRef string) error
 }
 
 type bookingRepository struct {
@@ -309,4 +315,62 @@ func availableColumn(seatType string) string {
 	default:
 		return ""
 	}
+}
+
+// AddProfitToPrebookingAccounting increments the ProfitAmount for a given bus instance.
+func (r *bookingRepository) AddProfitToPrebookingAccounting(busInstanceID string, amount float64) error {
+	return r.db.Model(&model.PrebookingAccounting{}).
+		Where("instance_id = ?", busInstanceID).
+		UpdateColumn("profit_amount", gorm.Expr("profit_amount + ?", amount)).Error
+}
+
+// SubtractProfitFromPrebookingAccounting decrements the ProfitAmount for a given bus instance.
+func (r *bookingRepository) SubtractProfitFromPrebookingAccounting(busInstanceID string, amount float64) error {
+	return r.db.Model(&model.PrebookingAccounting{}).
+		Where("instance_id = ?", busInstanceID).
+		UpdateColumn("profit_amount", gorm.Expr("profit_amount - ?", amount)).Error
+}
+
+func (r *bookingRepository) FindBookingByIDForAdmin(id string) (*model.Booking, error) {
+	var booking model.Booking
+	err := r.db.
+		Preload("BusInstance").
+		Preload("BusInstance.Bus.Operator").
+		Preload("BusInstance.Bus.OriginStop").
+		Preload("BusInstance.Bus.DestinationStop").
+		Preload("FareType").
+		Preload("BoardingPoint.BusStop").
+		Preload("DroppingPoint.BusStop").
+		Preload("Passengers.Seat").
+		Preload("Cancellation").
+		Where("id = ?", id).
+		First(&booking).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.New("booking not found")
+	}
+	return &booking, err
+}
+
+func (r *bookingRepository) UpdateBookingStatusForAdmin(id, status, paymentRef string) error {
+	updates := map[string]any{"status": status}
+	if paymentRef != "" {
+		updates["payment_ref"] = paymentRef
+	}
+	switch status {
+	case "CONFIRMED":
+		updates["confirmed_at"] = gorm.Expr("NOW()")
+	case "CANCELLED":
+		updates["cancelled_at"] = gorm.Expr("NOW()")
+	}
+
+	res := r.db.Model(&model.Booking{}).
+		Where("id = ?", id).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return errors.New("booking not found")
+	}
+	return nil
 }

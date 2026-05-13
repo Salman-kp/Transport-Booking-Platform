@@ -32,6 +32,9 @@ type AdminRepository interface {
 	UpdateBusInstanceStatus(id uuid.UUID, status string) error
 	ListBuses() ([]model.Bus, error)
 	GetPricingRules() ([]model.PricingRule, error)
+	GetDailyAccountingAnalytics() ([]map[string]interface{}, error)
+	GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error)
+	GetBookingsByInstance(instanceID string) ([]model.Booking, error)
 }
 
 type adminRepository struct {
@@ -260,4 +263,48 @@ func (r *adminRepository) DeleteBusInstance(id uuid.UUID) error {
 
 func (r *adminRepository) UpdateBusInstanceStatus(id uuid.UUID, status string) error {
 	return r.db.Model(&model.BusInstance{}).Where("id = ?", id).Update("status", status).Error
+}
+
+func (r *adminRepository) GetDailyAccountingAnalytics() ([]map[string]interface{}, error) {
+	var results []map[string]interface{}
+	err := r.db.Model(&model.PrebookingAccounting{}).
+		Select("DATE(departure_date_time) as date, COALESCE(SUM(spend_amount_total), 0) as total_spend, COALESCE(SUM(profit_amount), 0) as total_profit, COALESCE(SUM(loss_amount), 0) as total_loss").
+		Group("DATE(departure_date_time)").
+		Order("date DESC").
+		Find(&results).Error
+	return results, err
+}
+
+func (r *adminRepository) GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error) {
+	var result map[string]interface{}
+	err := r.db.Model(&model.PrebookingAccounting{}).
+		Select("instance_id, COALESCE(SUM(spend_amount_total), 0) as total_spend, COALESCE(SUM(profit_amount), 0) as total_profit, COALESCE(SUM(loss_amount), 0) as total_loss").
+		Where("instance_id = ?", instanceID).
+		Group("instance_id").
+		First(&result).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return map[string]interface{}{
+				"instance_id":  instanceID,
+				"total_spend":  0,
+				"total_profit": 0,
+				"total_loss":   0,
+			}, nil
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *adminRepository) GetBookingsByInstance(instanceID string) ([]model.Booking, error) {
+	var bookings []model.Booking
+	err := r.db.
+		Preload("BusInstance").
+		Preload("BusInstance.Bus.Operator").
+		Preload("FareType").
+		Preload("Passengers").
+		Where("bus_instance_id = ?", instanceID).
+		Order("created_at DESC").
+		Find(&bookings).Error
+	return bookings, err
 }
