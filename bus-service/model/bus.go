@@ -61,6 +61,7 @@ type BusInstance struct {
 	AvailableSeater         int       `gorm:"not null;default:0" json:"available_seater"`
 	AvailableSemiSleeper    int       `gorm:"not null;default:0" json:"available_semi_sleeper"`
 	AvailableSleeper        int       `gorm:"not null;default:0" json:"available_sleeper"`
+	PurchasedPriceOfSeats   float64   `gorm:"type:decimal(10,2);not null;default:0" json:"purchased_price_of_seats"`
 	BasePriceSeater         float64   `gorm:"type:decimal(10,2);not null;default:0" json:"base_price_seater"`
 	BasePriceSemiSleeper    float64   `gorm:"type:decimal(10,2);not null;default:0" json:"base_price_semi_sleeper"`
 	BasePriceSleeper        float64   `gorm:"type:decimal(10,2);not null;default:0" json:"base_price_sleeper"`

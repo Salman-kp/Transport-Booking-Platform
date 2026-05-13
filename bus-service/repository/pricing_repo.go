@@ -20,8 +20,8 @@ func UpdatePricingRule(id string, rule *model.PricingRule) error {
 // Engine execution hook for updating the current dynamically adjusted bus-instance price
 func UpdateBusInstancePrices(instanceID string, seater, semiSleeper, sleeper float64) error {
 	return db.DB.Model(&model.BusInstance{}).Where("id = ?", instanceID).Updates(map[string]interface{}{
-		"current_price_seater":        seater,
-		"current_price_semi_sleeper":  semiSleeper,
-		"current_price_sleeper":       sleeper,
+		"current_price_seater":       seater,
+		"current_price_semi_sleeper": semiSleeper,
+		"current_price_sleeper":      sleeper,
 	}).Error
 }

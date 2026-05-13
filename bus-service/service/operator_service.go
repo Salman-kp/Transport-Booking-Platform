@@ -14,7 +14,7 @@ type OperatorService interface {
 	GetInventory(operatorID string) ([]model.OperatorInventory, error)
 	GetAnalytics(operatorID string) (map[string]interface{}, error)
 	GetBookingsByOperator(operatorID string) ([]model.Booking, error)
-	
+
 	// Trip Instance Management
 	ListInstances(operatorID string) ([]model.BusInstance, error)
 	RemoveInstance(operatorID, instanceID string) error
@@ -75,7 +75,7 @@ func (s *operatorService) GetProfile(userID string) (map[string]interface{}, err
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return map[string]interface{}{
 		"operator_user": opUser,
 		"operator":      op,

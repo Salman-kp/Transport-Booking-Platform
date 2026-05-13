@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Salman-kp/tripneo/bus-service/dto"
 	"github.com/Salman-kp/tripneo/bus-service/model"
 	"github.com/Salman-kp/tripneo/bus-service/pkg/utils"
 	"github.com/Salman-kp/tripneo/bus-service/service"
@@ -397,4 +398,48 @@ func (h *AdminHandler) UpdateCancellationPolicy(c fiber.Ctx) error {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
 	}
 	return utils.Success(c, fiber.StatusOK, "Cancellation policy updated successfully", nil)
+}
+
+func (h *AdminHandler) GetDailyAccountingAnalytics(c fiber.Ctx) error {
+	analytics, err := h.service.GetDailyAccountingAnalytics()
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+	return utils.Success(c, fiber.StatusOK, "Daily accounting analytics retrieved successfully", analytics)
+}
+
+func (h *AdminHandler) GetInstanceAccountingAnalytics(c fiber.Ctx) error {
+	id := c.Params("id")
+	analytics, err := h.service.GetInstanceAccountingAnalytics(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+	return utils.Success(c, fiber.StatusOK, "Instance accounting analytics retrieved successfully", analytics)
+}
+
+func (h *AdminHandler) GetBookingsByInstance(c fiber.Ctx) error {
+	id := c.Params("id")
+	bookings, err := h.service.GetBookingsByInstance(id)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+	return utils.Success(c, fiber.StatusOK, "Instance bookings retrieved successfully", bookings)
+}
+
+func (h *AdminHandler) CancelBooking(c fiber.Ctx) error {
+	id := c.Params("id")
+	var req dto.CancelBookingRequest
+	if err := c.Bind().JSON(&req); err != nil && err.Error() != "Unprocessable Entity" {
+		// Ignore empty body errors, but fail on malformed JSON
+		if len(c.Body()) > 0 {
+			return utils.Fail(c, fiber.StatusBadRequest, "Invalid request body")
+		}
+	}
+
+	res, err := h.service.CancelBooking(id, &req)
+	if err != nil {
+		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return utils.Success(c, fiber.StatusOK, "Booking cancelled successfully", res)
 }

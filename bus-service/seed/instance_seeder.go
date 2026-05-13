@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Salman-kp/tripneo/bus-service/model"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -52,22 +53,64 @@ func SeedBusInstances(tx *gorm.DB) error {
 		}
 		tDate, _ := time.Parse("2006-01-02", r.TravelDate)
 
+		// Determine cost price (non-zero base price from JSON)
+		costPrice := r.BasePriceSeater
+		if costPrice == 0 {
+			costPrice = r.BasePriceSemiSleeper
+		}
+		if costPrice == 0 {
+			costPrice = r.BasePriceSleeper
+		}
+		sellingPrice := costPrice + (costPrice * 30 / 100) // cost + 30%
+
 		inst := model.BusInstance{
-			BusID:                   templateBus.ID,
-			TravelDate:              tDate,
-			DepartureAt:             r.DepartureAt,
-			ArrivalAt:               r.ArrivalAt,
-			Status:                  r.Status,
-			DelayMinutes:            r.DelayMinutes,
-			AvailableSeater:         r.AvailableSeater,
-			AvailableSemiSleeper:    r.AvailableSemiSleeper,
-			AvailableSleeper:        r.AvailableSleeper,
-			BasePriceSeater:         r.BasePriceSeater,
-			BasePriceSemiSleeper:    r.BasePriceSemiSleeper,
-			BasePriceSleeper:        r.BasePriceSleeper,
-			CurrentPriceSeater:      r.CurrentPriceSeater,
-			CurrentPriceSemiSleeper: r.CurrentPriceSemiSleeper,
-			CurrentPriceSleeper:     r.CurrentPriceSleeper,
+			BusID:                 templateBus.ID,
+			TravelDate:            tDate,
+			DepartureAt:           r.DepartureAt,
+			ArrivalAt:             r.ArrivalAt,
+			Status:                r.Status,
+			DelayMinutes:          r.DelayMinutes,
+			AvailableSeater:       r.AvailableSeater,
+			AvailableSemiSleeper:  r.AvailableSemiSleeper,
+			AvailableSleeper:      r.AvailableSleeper,
+			PurchasedPriceOfSeats: costPrice,
+			// BasePriceX = selling floor (cost + 30%), consistent with inventory_job.go
+			BasePriceSeater: func() float64 {
+				if r.BasePriceSeater > 0 {
+					return r.BasePriceSeater + r.BasePriceSeater*30/100
+				}
+				return 0
+			}(),
+			BasePriceSemiSleeper: func() float64 {
+				if r.BasePriceSemiSleeper > 0 {
+					return r.BasePriceSemiSleeper + r.BasePriceSemiSleeper*30/100
+				}
+				return 0
+			}(),
+			BasePriceSleeper: func() float64 {
+				if r.BasePriceSleeper > 0 {
+					return r.BasePriceSleeper + r.BasePriceSleeper*30/100
+				}
+				return 0
+			}(),
+			CurrentPriceSeater: func() float64 {
+				if r.BasePriceSeater > 0 {
+					return r.BasePriceSeater + r.BasePriceSeater*30/100
+				}
+				return 0
+			}(),
+			CurrentPriceSemiSleeper: func() float64 {
+				if r.BasePriceSemiSleeper > 0 {
+					return r.BasePriceSemiSleeper + r.BasePriceSemiSleeper*30/100
+				}
+				return 0
+			}(),
+			CurrentPriceSleeper: func() float64 {
+				if r.BasePriceSleeper > 0 {
+					return r.BasePriceSleeper + r.BasePriceSleeper*30/100
+				}
+				return 0
+			}(),
 		}
 
 		var existing model.BusInstance
@@ -81,12 +124,72 @@ func SeedBusInstances(tx *gorm.DB) error {
 				log.Printf("[seed] error generating seats for instance %s: %v\n", inst.ID, err)
 				return err
 			}
+			// Apply prebooking availability (weekend=60%, weekday=40%)
+			weekday := int(tDate.Weekday())
+			if weekday == 0 {
+				weekday = 7
+			}
+			isWeekend := weekday == 6 || weekday == 7
+			seatType := ""
+			var layoutMap map[string]interface{}
+			if json.Unmarshal(templateBus.BusType.SeatLayout, &layoutMap) == nil {
+				for k := range layoutMap {
+					if k == "seater" || k == "semi_sleeper" || k == "sleeper" {
+						seatType = k
+						if err := applyPrebookingAvailability(tx, inst.ID, k, isWeekend); err != nil {
+							log.Printf("[seed] error applying prebooking for %s: %v\n", inst.ID, err)
+						}
+						break
+					}
+				}
+			}
+			// Create FareType(s) with selling price (same as inventory_job.go)
+			if seatType != "" && sellingPrice > 0 {
+				var existingFare model.FareType
+				if tx.Where("bus_instance_id = ? AND seat_type = ? AND name = ?", inst.ID, seatType, "GENERAL").First(&existingFare).Error != nil {
+					activeSeats := inst.AvailableSeater + inst.AvailableSemiSleeper + inst.AvailableSleeper
+
+					if seatType == "sleeper" {
+						sleeperFares := []model.FareType{
+							{
+								BusInstanceID:   inst.ID,
+								SeatType:        "sleeper",
+								Name:            "GENERAL",
+								Price:           sellingPrice,
+								IsRefundable:    true,
+								CancellationFee: 50.0,
+								SeatsAvailable:  activeSeats,
+							},
+							{
+								BusInstanceID:   inst.ID,
+								SeatType:        "sleeper",
+								Name:            "FLEXI",
+								Price:           sellingPrice + 300.0,
+								IsRefundable:    true,
+								CancellationFee: 100.0,
+								SeatsAvailable:  activeSeats,
+							},
+						}
+						tx.Create(&sleeperFares)
+					} else {
+						cancellationFee := map[string]float64{"semi_sleeper": 40.0, "seater": 25.0}[seatType]
+						tx.Create(&model.FareType{
+							BusInstanceID:   inst.ID,
+							SeatType:        seatType,
+							Name:            "GENERAL",
+							Price:           sellingPrice,
+							IsRefundable:    true,
+							CancellationFee: cancellationFee,
+							SeatsAvailable:  activeSeats,
+						})
+					}
+				}
+			}
 		}
 	}
 	log.Println("✅ Bus instance seeding completed")
 	return nil
 }
-
 
 type rawRoutePoint struct {
 	StopName      string
@@ -304,6 +407,72 @@ func seedRoutePoints(tx *gorm.DB, isBoardingMode bool) error {
 	return nil
 }
 
+// applyPrebookingAvailability marks inactive seats as is_available=false
+// and syncs the available_* count on the BusInstance.
+// Categories: WOMEN(first 8) → MEN(next 8) → GENERAL(rest). Sleeper: all GENERAL.
+func applyPrebookingAvailability(tx *gorm.DB, instanceID uuid.UUID, seatType string, isWeekend bool) error {
+	type catCount struct {
+		category string
+		active   int
+	}
+	var cats []catCount
+	switch seatType {
+	case "seater":
+		if isWeekend {
+			cats = []catCount{{"WOMEN", 5}, {"MEN", 5}, {"GENERAL", 14}}
+		} else {
+			cats = []catCount{{"WOMEN", 3}, {"MEN", 3}, {"GENERAL", 10}}
+		}
+	case "semi_sleeper":
+		if isWeekend {
+			cats = []catCount{{"WOMEN", 4}, {"MEN", 4}, {"GENERAL", 11}}
+		} else {
+			cats = []catCount{{"WOMEN", 3}, {"MEN", 3}, {"GENERAL", 7}}
+		}
+	case "sleeper":
+		if isWeekend {
+			cats = []catCount{{"GENERAL", 10}}
+		} else {
+			cats = []catCount{{"GENERAL", 6}}
+		}
+	default:
+		return nil
+	}
+
+	totalActive := 0
+	for _, cat := range cats {
+		totalActive += cat.active
+		// Fetch only the seats BEYOND the active count (ordered by seat_number ASC).
+		// Using Offset(cat.active) means we skip the first `active` seats (which stay true)
+		// and only get the ones that should be false.
+		var toDeactivate []model.Seat
+		if err := tx.Select("id").
+			Where("bus_instance_id = ? AND category = ?", instanceID, cat.category).
+			Order("seat_number ASC").
+			Offset(cat.active).
+			Find(&toDeactivate).Error; err != nil {
+			continue
+		}
+		// Updates(map) correctly writes false even though it's a zero value for bool.
+		for _, seat := range toDeactivate {
+			tx.Model(&model.Seat{}).
+				Where("id = ?", seat.ID).
+				Updates(map[string]interface{}{"is_available": false})
+		}
+	}
+
+	updateMap := map[string]interface{}{}
+	switch seatType {
+	case "seater":
+		updateMap["available_seater"] = totalActive
+	case "semi_sleeper":
+		updateMap["available_semi_sleeper"] = totalActive
+	case "sleeper":
+		updateMap["available_sleeper"] = totalActive
+	}
+	return tx.Model(&model.BusInstance{}).Where("id = ?", instanceID).Updates(updateMap).Error
+}
+
 func findStop(tx *gorm.DB, name, city string) (*model.BusStop, error) {
 	var stop model.BusStop
 	if city != "" {
@@ -317,4 +486,3 @@ func findStop(tx *gorm.DB, name, city string) (*model.BusStop, error) {
 	}
 	return &stop, nil
 }
-

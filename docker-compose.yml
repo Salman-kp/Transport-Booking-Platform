@@ -106,26 +106,26 @@ services:
   #     - redis
   #     - redpanda
 
-  # bus-service:
-  #   build:
-  #     context: ./bus-service
-  #     dockerfile: Dockerfile
-  #   expose:
-  #     - 8083
-  #   env_file:
-  #     - ./bus-service/.env
-  #   environment:
-  #     DB_URL: ${BUS_DB}
-  #     RUN_SEED_ON_BOOT: "true"
-  #     # REDIS_HOST: redis
-  #     # REDIS_PORT: 6379   
-  #     REDIS_URL: redis:6379
-  #     KAFKA_BROKERS: redpanda:9092
-  #     PAYMENT_SERVICE_ADDR: payment-service:50051
+  bus-service:
+    build:
+      context: ./bus-service
+      dockerfile: Dockerfile
+    expose:
+      - 8083
+    env_file:
+      - ./bus-service/.env
+    environment:
+      DB_URL: ${BUS_DB}
+      RUN_SEED_ON_BOOT: "true"
+      # REDIS_HOST: redis
+      # REDIS_PORT: 6379   
+      REDIS_URL: redis:6379
+      KAFKA_BROKERS: redpanda:9092
+      PAYMENT_SERVICE_ADDR: payment-service:50051
 
-  #   depends_on:
-  #     - redis
-  #     - redpanda
+    depends_on:
+      - redis
+      - redpanda
 
   payment-service:
     build:

@@ -4,14 +4,18 @@ import (
 	"github.com/Salman-kp/tripneo/bus-service/handler"
 	"github.com/Salman-kp/tripneo/bus-service/middleware"
 	"github.com/Salman-kp/tripneo/bus-service/repository"
+	"github.com/Salman-kp/tripneo/bus-service/rpc"
 	"github.com/Salman-kp/tripneo/bus-service/service"
+	"github.com/Salman-kp/tripneo/bus-service/ws"
 	"github.com/gofiber/fiber/v3"
+	goredis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-func SetupAdminRoutes(app *fiber.App, db *gorm.DB) {
+func SetupAdminRoutes(app *fiber.App, db *gorm.DB, payClient *rpc.PaymentClient, rdb *goredis.Client, wsManager *ws.Manager) {
 	adminRepo := repository.NewAdminRepository(db)
-	adminService := service.NewAdminService(adminRepo, db)
+	bookingRepo := repository.NewBookingRepository(db)
+	adminService := service.NewAdminService(adminRepo, bookingRepo, db, payClient, rdb, wsManager)
 	adminHandler := handler.NewAdminHandler(adminService)
 
 	admin := app.Group("/api/buses/admin")
@@ -23,7 +27,7 @@ func SetupAdminRoutes(app *fiber.App, db *gorm.DB) {
 	admin.Post("/buses", adminHandler.CreateBus)
 	admin.Put("/buses/:id", adminHandler.UpdateBus)
 	admin.Get("/buses", adminHandler.ListBuses)
-	
+
 	// Bus Instance Management (Cron handles generation, Admin manages specific trips)
 	admin.Delete("/instances/:id", adminHandler.DeleteBusInstance)
 	admin.Put("/instances/:id/status", adminHandler.UpdateBusInstanceStatus)
@@ -34,9 +38,13 @@ func SetupAdminRoutes(app *fiber.App, db *gorm.DB) {
 
 	// Booking & Analytics
 	admin.Get("/bookings", adminHandler.GetAllBookings)
+	admin.Post("/bookings/:id/cancel", adminHandler.CancelBooking)
 	admin.Get("/analytics/revenue", adminHandler.GetRevenueAnalytics)
 	admin.Get("/analytics/operators", adminHandler.GetOperatorAnalytics)
 	admin.Get("/analytics/upcoming", adminHandler.GetUpcomingTrips)
+	admin.Get("/analytics/daily-accounting", adminHandler.GetDailyAccountingAnalytics)
+	admin.Get("/analytics/instances/:id/accounting", adminHandler.GetInstanceAccountingAnalytics)
+	admin.Get("/instances/:id/bookings", adminHandler.GetBookingsByInstance)
 
 	// Pricing Rules
 	admin.Get("/pricing-rules", adminHandler.GetPricingRules)
