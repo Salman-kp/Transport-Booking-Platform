@@ -32,8 +32,8 @@ type AdminRepository interface {
 	UpdateBusInstanceStatus(id uuid.UUID, status string) error
 	ListBuses() ([]model.Bus, error)
 	GetPricingRules() ([]model.PricingRule, error)
-	GetDailyAccountingAnalytics() ([]map[string]interface{}, error)
-	GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error)
+	GetDailyAccountingAnalytics(month, year int) ([]map[string]interface{}, error)
+	GetInstanceAccountingAnalytics(day, month, year int) ([]map[string]interface{}, error)
 	GetBookingsByInstance(instanceID string) ([]model.Booking, error)
 }
 
@@ -265,35 +265,25 @@ func (r *adminRepository) UpdateBusInstanceStatus(id uuid.UUID, status string) e
 	return r.db.Model(&model.BusInstance{}).Where("id = ?", id).Update("status", status).Error
 }
 
-func (r *adminRepository) GetDailyAccountingAnalytics() ([]map[string]interface{}, error) {
+func (r *adminRepository) GetDailyAccountingAnalytics(month, year int) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 	err := r.db.Model(&model.PrebookingAccounting{}).
-		Select("DATE(departure_date_time) as date, COALESCE(SUM(spend_amount_total), 0) as total_spend, COALESCE(SUM(profit_amount), 0) as total_profit, COALESCE(SUM(loss_amount), 0) as total_loss").
-		Group("DATE(departure_date_time)").
+		Select("DATE(created_at) as date, COALESCE(SUM(spend_amount_total), 0) as total_spend, COALESCE(SUM(profit_amount), 0) as total_profit, COALESCE(SUM(loss_amount), 0) as total_loss").
+		Where("EXTRACT(MONTH FROM created_at) = ? AND EXTRACT(YEAR FROM created_at) = ?", month, year).
+		Group("DATE(created_at)").
 		Order("date DESC").
 		Find(&results).Error
 	return results, err
 }
 
-func (r *adminRepository) GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error) {
-	var result map[string]interface{}
+func (r *adminRepository) GetInstanceAccountingAnalytics(day, month, year int) ([]map[string]interface{}, error) {
+	var results []map[string]interface{}
 	err := r.db.Model(&model.PrebookingAccounting{}).
-		Select("instance_id, COALESCE(SUM(spend_amount_total), 0) as total_spend, COALESCE(SUM(profit_amount), 0) as total_profit, COALESCE(SUM(loss_amount), 0) as total_loss").
-		Where("instance_id = ?", instanceID).
-		Group("instance_id").
-		First(&result).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return map[string]interface{}{
-				"instance_id":  instanceID,
-				"total_spend":  0,
-				"total_profit": 0,
-				"total_loss":   0,
-			}, nil
-		}
-		return nil, err
-	}
-	return result, nil
+		Select("instance_id, bus_number, spend_amount_total, profit_amount, loss_amount").
+		Where("EXTRACT(DAY FROM created_at) = ? AND EXTRACT(MONTH FROM created_at) = ? AND EXTRACT(YEAR FROM created_at) = ?", day, month, year).
+		Order("created_at DESC").
+		Find(&results).Error
+	return results, err
 }
 
 func (r *adminRepository) GetBookingsByInstance(instanceID string) ([]model.Booking, error) {

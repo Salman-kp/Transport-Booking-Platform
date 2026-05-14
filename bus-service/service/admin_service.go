@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/Salman-kp/tripneo/bus-service/dto"
@@ -42,8 +44,8 @@ type AdminService interface {
 	UpdateBusInstanceStatus(id uuid.UUID, status string) error
 	ListBuses() ([]model.Bus, error)
 	GetPricingRules() ([]model.PricingRule, error)
-	GetDailyAccountingAnalytics() ([]map[string]interface{}, error)
-	GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error)
+	GetDailyAccountingAnalytics(month, year int) ([]map[string]interface{}, error)
+	GetInstanceAccountingAnalytics(day, month, year int) ([]map[string]interface{}, error)
 	GetBookingsByInstance(instanceID string) ([]model.Booking, error)
 	CancelBooking(id string, req *dto.CancelBookingRequest) (*dto.CancelBookingResponse, error)
 }
@@ -293,12 +295,112 @@ func (s *adminService) GetPricingRules() ([]model.PricingRule, error) {
 	return s.repo.GetPricingRules()
 }
 
-func (s *adminService) GetDailyAccountingAnalytics() ([]map[string]interface{}, error) {
-	return s.repo.GetDailyAccountingAnalytics()
+func (s *adminService) GetDailyAccountingAnalytics(month, year int) ([]map[string]interface{}, error) {
+	dbAnalytics, err := s.repo.GetDailyAccountingAnalytics(month, year)
+	if err != nil {
+		return nil, err
+	}
+
+	lastDay := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
+	dbMap := make(map[string]map[string]interface{})
+	for _, row := range dbAnalytics {
+		if dateVal, ok := row["date"]; ok {
+			var dateStr string
+			switch v := dateVal.(type) {
+			case string:
+				if len(v) >= 10 {
+					dateStr = v[:10]
+				} else {
+					dateStr = v
+				}
+			case time.Time:
+				dateStr = v.Format("2006-01-02")
+			}
+			dbMap[dateStr] = row
+		}
+	}
+
+	var finalAnalytics []map[string]interface{}
+	for day := 1; day <= lastDay; day++ {
+		dateStr := fmt.Sprintf("%04d-%02d-%02d", year, month, day)
+		if row, exists := dbMap[dateStr]; exists {
+			// Ensure consistent numeric types for frontend
+			for _, key := range []string{"total_spend", "total_profit", "total_loss"} {
+				if val, ok := row[key]; ok {
+					switch v := val.(type) {
+					case string:
+						if f, err := strconv.ParseFloat(v, 64); err == nil {
+							row[key] = f
+						} else {
+							row[key] = 0.0
+						}
+					case []byte:
+						if f, err := strconv.ParseFloat(string(v), 64); err == nil {
+							row[key] = f
+						} else {
+							row[key] = 0.0
+						}
+					case float64:
+						row[key] = v
+					default:
+						row[key] = 0.0
+					}
+				} else {
+					row[key] = 0.0
+				}
+			}
+			row["date"] = dateStr
+			finalAnalytics = append(finalAnalytics, row)
+		} else {
+			finalAnalytics = append(finalAnalytics, map[string]interface{}{
+				"date":         dateStr,
+				"total_spend":  0.0,
+				"total_profit": 0.0,
+				"total_loss":   0.0,
+			})
+		}
+	}
+
+	for i, j := 0, len(finalAnalytics)-1; i < j; i, j = i+1, j-1 {
+		finalAnalytics[i], finalAnalytics[j] = finalAnalytics[j], finalAnalytics[i]
+	}
+
+	return finalAnalytics, nil
 }
 
-func (s *adminService) GetInstanceAccountingAnalytics(instanceID string) (map[string]interface{}, error) {
-	return s.repo.GetInstanceAccountingAnalytics(instanceID)
+func (s *adminService) GetInstanceAccountingAnalytics(day, month, year int) ([]map[string]interface{}, error) {
+	dbAnalytics, err := s.repo.GetInstanceAccountingAnalytics(day, month, year)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range dbAnalytics {
+		for _, key := range []string{"spend_amount_total", "profit_amount", "loss_amount"} {
+			if val, ok := row[key]; ok {
+				switch v := val.(type) {
+				case string:
+					if f, err := strconv.ParseFloat(v, 64); err == nil {
+						row[key] = f
+					} else {
+						row[key] = 0.0
+					}
+				case []byte:
+					if f, err := strconv.ParseFloat(string(v), 64); err == nil {
+						row[key] = f
+					} else {
+						row[key] = 0.0
+					}
+				case float64:
+					row[key] = v
+				default:
+					row[key] = 0.0
+				}
+			} else {
+				row[key] = 0.0
+			}
+		}
+	}
+	return dbAnalytics, nil
 }
 
 func (s *adminService) GetBookingsByInstance(instanceID string) ([]model.Booking, error) {

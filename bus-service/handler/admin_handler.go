@@ -401,7 +401,24 @@ func (h *AdminHandler) UpdateCancellationPolicy(c fiber.Ctx) error {
 }
 
 func (h *AdminHandler) GetDailyAccountingAnalytics(c fiber.Ctx) error {
-	analytics, err := h.service.GetDailyAccountingAnalytics()
+	monthStr := c.Query("month")
+	yearStr := c.Query("year")
+
+	if monthStr == "" || yearStr == "" {
+		return utils.Fail(c, fiber.StatusBadRequest, "month and year are required query parameters")
+	}
+
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid month parameter")
+	}
+
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid year parameter")
+	}
+
+	analytics, err := h.service.GetDailyAccountingAnalytics(month, year)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
 	}
@@ -409,8 +426,30 @@ func (h *AdminHandler) GetDailyAccountingAnalytics(c fiber.Ctx) error {
 }
 
 func (h *AdminHandler) GetInstanceAccountingAnalytics(c fiber.Ctx) error {
-	id := c.Params("id")
-	analytics, err := h.service.GetInstanceAccountingAnalytics(id)
+	dayStr := c.Query("day")
+	monthStr := c.Query("month")
+	yearStr := c.Query("year")
+
+	if dayStr == "" || monthStr == "" || yearStr == "" {
+		return utils.Fail(c, fiber.StatusBadRequest, "day, month, and year are required query parameters")
+	}
+
+	day, err := strconv.Atoi(dayStr)
+	if err != nil || day < 1 || day > 31 {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid day parameter")
+	}
+
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid month parameter")
+	}
+
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 {
+		return utils.Fail(c, fiber.StatusBadRequest, "invalid year parameter")
+	}
+
+	analytics, err := h.service.GetInstanceAccountingAnalytics(day, month, year)
 	if err != nil {
 		return utils.Fail(c, fiber.StatusInternalServerError, err.Error())
 	}
