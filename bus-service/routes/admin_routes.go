@@ -43,7 +43,7 @@ func SetupAdminRoutes(app *fiber.App, db *gorm.DB, payClient *rpc.PaymentClient,
 	admin.Get("/analytics/operators", adminHandler.GetOperatorAnalytics)
 	admin.Get("/analytics/upcoming", adminHandler.GetUpcomingTrips)
 	admin.Get("/analytics/daily-accounting", adminHandler.GetDailyAccountingAnalytics)
-	admin.Get("/analytics/instances/:id/accounting", adminHandler.GetInstanceAccountingAnalytics)
+	admin.Get("/analytics/instances/accounting", adminHandler.GetInstanceAccountingAnalytics)
 	admin.Get("/instances/:id/bookings", adminHandler.GetBookingsByInstance)
 
 	// Pricing Rules
